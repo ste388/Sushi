@@ -97,12 +97,12 @@
         </div>
 
         <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          <!-- Carica PDF -->
+          <!-- Importa PDF -->
           <button
             id="loadPdfHeaderBtn"
             type="button"
             class="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-[#e63946]/15 hover:bg-[#e63946]/25 text-[#e63946] dark:text-rose-300 border border-[#e63946]/40 text-[11px] font-bold transition active:scale-95"
-            title="Carica menu Sushi.pdf per ritagliare foto o riconoscere testo da pagina"
+            title="Importa menu Sushi.pdf per ritagliare foto o riconoscere testo da pagina"
           >
             <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -110,7 +110,23 @@
               <line x1="12" y1="18" x2="12" y2="12"></line>
               <polyline points="9 15 12 12 15 15"></polyline>
             </svg>
-            <span id="loadPdfBtnLabel">Carica PDF</span>
+            <span id="loadPdfBtnLabel">Importa PDF</span>
+          </button>
+
+          <!-- Esporta index.html autonomo per GitHub / Smartphone -->
+          <button
+            id="exportHtmlBtn"
+            type="button"
+            class="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-[#f4a261]/20 hover:bg-[#f4a261]/30 text-amber-800 dark:text-[#f4a261] border border-[#f4a261]/45 text-[11px] font-extrabold transition active:scale-95"
+            title="Scarica index.html con tutte le foto e le modifiche incorporate per GitHub e cellulare"
+          >
+            <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span class="hidden min-[390px]:inline">Esporta index.html</span>
+            <span class="inline min-[390px]:hidden">Esporta</span>
           </button>
 
           <button
@@ -690,8 +706,9 @@
   </div>
 
   <!-- ==================== SCRIPT APPLICAZIONE ==================== -->
+  <script id="embedded-menu-data">window.__EMBEDDED_DATA__ = null;</script>
   <script>
-    // Snapshot incorporato da "Salva HTML"
+    // Compatibilità con eventuale snapshot precedente
     window.__EMBEDDED_SNAPSHOT__ = window.__EMBEDDED_SNAPSHOT__ || null;
 
     // Disabilita worker esterno PDF.js per garantire funzionamento sia su https:// che su file:// locale
@@ -1013,9 +1030,17 @@
 
     // ==================== STATO GLOBALE & CHIAVI STORAGE ====================
     const STORAGE_KEYS = {
+      ORDER: 'masami_order_v1',
+      CHECKED: 'masami_checked_v1',
+      THEME: 'masami_theme_v12',
+      CUSTOM_ITEMS: 'masami_custom_items_v1',
+      LOCKED_PHOTOS: 'masami_locked_photos_v1',
+      LOCKED_ITEMS: 'masami_locked_items_v1'
+    };
+
+    const LEGACY_STORAGE_KEYS = {
       ORDER: 'masami_order_v12',
       CHECKED: 'masami_checked_v12',
-      THEME: 'masami_theme_v12',
       CUSTOM_ITEMS: 'masami_custom_items_v12',
       LOCKED_PHOTOS: 'masami_locked_photos_v12',
       LOCKED_ITEMS: 'masami_locked_items_v12'
@@ -1162,6 +1187,45 @@
     }
 
     function loadLocalState() {
+      // 1. Carica prima eventuali dati incorporati in <script id="embedded-menu-data">
+      const embedded = window.__EMBEDDED_DATA__ || window.__EMBEDDED_SNAPSHOT__;
+      if (embedded && typeof embedded === 'object') {
+        if (embedded.photos && typeof embedded.photos === 'object') {
+          state.photos = { ...embedded.photos };
+        }
+        if (embedded.lockedPhotos && typeof embedded.lockedPhotos === 'object') {
+          state.lockedPhotos = { ...embedded.lockedPhotos };
+        }
+        if (embedded.lockedItems && typeof embedded.lockedItems === 'object') {
+          state.lockedItems = { ...embedded.lockedItems };
+        }
+        if (embedded.customItems && typeof embedded.customItems === 'object') {
+          Object.keys(embedded.customItems).forEach(code => {
+            const target = getItemByCode(code);
+            const c = embedded.customItems[code];
+            if (target && c) {
+              target.name = c.name;
+              target.pieces = c.pieces || '';
+              target.desc = c.desc || '';
+              target.price = Number(c.price) || 0;
+              state.lockedItems[code] = true;
+            }
+          });
+        }
+        if (Array.isArray(embedded.menuItems)) {
+          embedded.menuItems.forEach(snapItem => {
+            const target = getItemByCode(snapItem.code);
+            if (target && !state.lockedItems[snapItem.code]) {
+              target.name = snapItem.name;
+              target.pieces = snapItem.pieces || '';
+              target.desc = snapItem.desc || '';
+              target.price = Number(snapItem.price) || 0;
+            }
+          });
+        }
+      }
+
+      // 2. Carica e unisce i dati salvati in localStorage (incluse chiavi v1 e migrazione da v12)
       try {
         const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
         if (savedTheme === 'light') {
@@ -1170,19 +1234,23 @@
           document.documentElement.classList.add('dark');
         }
 
-        const rawOrder = localStorage.getItem(STORAGE_KEYS.ORDER);
+        const rawOrder = localStorage.getItem(STORAGE_KEYS.ORDER) || localStorage.getItem(LEGACY_STORAGE_KEYS.ORDER);
         if (rawOrder) state.order = JSON.parse(rawOrder) || {};
 
-        const rawChecked = localStorage.getItem(STORAGE_KEYS.CHECKED);
+        const rawChecked = localStorage.getItem(STORAGE_KEYS.CHECKED) || localStorage.getItem(LEGACY_STORAGE_KEYS.CHECKED);
         if (rawChecked) state.checked = JSON.parse(rawChecked) || {};
 
-        const rawLockedPhotos = localStorage.getItem(STORAGE_KEYS.LOCKED_PHOTOS);
-        if (rawLockedPhotos) state.lockedPhotos = JSON.parse(rawLockedPhotos) || {};
+        const rawLockedPhotos = localStorage.getItem(STORAGE_KEYS.LOCKED_PHOTOS) || localStorage.getItem(LEGACY_STORAGE_KEYS.LOCKED_PHOTOS);
+        if (rawLockedPhotos) {
+          state.lockedPhotos = { ...state.lockedPhotos, ...(JSON.parse(rawLockedPhotos) || {}) };
+        }
 
-        const rawLockedItems = localStorage.getItem(STORAGE_KEYS.LOCKED_ITEMS);
-        if (rawLockedItems) state.lockedItems = JSON.parse(rawLockedItems) || {};
+        const rawLockedItems = localStorage.getItem(STORAGE_KEYS.LOCKED_ITEMS) || localStorage.getItem(LEGACY_STORAGE_KEYS.LOCKED_ITEMS);
+        if (rawLockedItems) {
+          state.lockedItems = { ...state.lockedItems, ...(JSON.parse(rawLockedItems) || {}) };
+        }
 
-        const rawCustom = localStorage.getItem(STORAGE_KEYS.CUSTOM_ITEMS);
+        const rawCustom = localStorage.getItem(STORAGE_KEYS.CUSTOM_ITEMS) || localStorage.getItem(LEGACY_STORAGE_KEYS.CUSTOM_ITEMS);
         if (rawCustom) {
           const customMap = JSON.parse(rawCustom) || {};
           Object.keys(customMap).forEach(code => {
@@ -1197,30 +1265,180 @@
           });
         }
       } catch (_) {}
+    }
+    function hasEmbeddedPhotos() {
+      const embedded = window.__EMBEDDED_DATA__ || window.__EMBEDDED_SNAPSHOT__;
+      return Boolean(embedded && embedded.photos && Object.keys(embedded.photos).length > 0);
+    }
 
-      // Applica eventuale snapshot incorporato tramite "Salva HTML"
-      if (window.__EMBEDDED_SNAPSHOT__) {
-        const snap = window.__EMBEDDED_SNAPSHOT__;
-        if (snap.photos && typeof snap.photos === 'object') {
-          state.photos = { ...snap.photos, ...state.photos };
+    function updatePdfStatusUI() {
+      const banner = document.getElementById('pdfStatusBanner');
+      const headerPdfBtn = document.getElementById('loadPdfHeaderBtn');
+      const btnLabel = document.getElementById('loadPdfBtnLabel');
+      const subtitle = document.getElementById('menuSubtitleInfo');
+      const photoCount = Object.keys(state.photos).length;
+      const embeddedReady = hasEmbeddedPhotos();
+
+      if (state.pdfDoc) {
+        if (banner) banner.classList.add('hidden');
+        if (headerPdfBtn) {
+          headerPdfBtn.className = 'inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-[#e63946]/15 hover:bg-[#e63946]/25 text-[#e63946] dark:text-rose-300 border border-[#e63946]/40 text-[11px] font-bold transition active:scale-95';
         }
-        if (snap.lockedPhotos && typeof snap.lockedPhotos === 'object') {
-          state.lockedPhotos = { ...snap.lockedPhotos, ...state.lockedPhotos };
+        if (btnLabel) btnLabel.textContent = `PDF (${state.pdfDoc.numPages}p)`;
+      } else if (embeddedReady || photoCount > 0) {
+        // Modalità autonoma (es. GitHub Pages su smartphone): nessun banner PDF e pulsante discreto su mobile
+        if (banner) banner.classList.add('hidden');
+        if (headerPdfBtn) {
+          headerPdfBtn.className = 'hidden sm:inline-flex items-center gap-1 px-2 py-2 rounded-xl bg-stone-200/70 hover:bg-stone-300/80 dark:bg-zinc-800/80 dark:hover:bg-zinc-700 text-stone-600 dark:text-zinc-400 border border-stone-300/70 dark:border-zinc-700/70 text-[11px] font-semibold transition active:scale-95';
         }
-        if (snap.lockedItems && typeof snap.lockedItems === 'object') {
-          state.lockedItems = { ...snap.lockedItems, ...state.lockedItems };
+        if (btnLabel) btnLabel.textContent = 'Importa PDF';
+      } else {
+        if (banner) banner.classList.remove('hidden');
+        if (headerPdfBtn) {
+          headerPdfBtn.className = 'inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-[#e63946]/15 hover:bg-[#e63946]/25 text-[#e63946] dark:text-rose-300 border border-[#e63946]/40 text-[11px] font-bold transition active:scale-95';
         }
-        if (Array.isArray(snap.menuItems)) {
-          snap.menuItems.forEach(snapItem => {
-            const target = getItemByCode(snapItem.code);
-            if (target && !state.lockedItems[snapItem.code]) {
-              target.name = snapItem.name;
-              target.pieces = snapItem.pieces || '';
-              target.desc = snapItem.desc || '';
-              target.price = Number(snapItem.price) || 0;
-            }
-          });
+        if (btnLabel) btnLabel.textContent = 'Importa PDF';
+      }
+
+      if (subtitle) {
+        subtitle.textContent = photoCount > 0
+          ? `${state.menuItems.length} piatti • ${photoCount} foto pronte`
+          : `Catalogo verificato • ${state.menuItems.length} voci`;
+      }
+    }
+
+    // ==================== ESPORTAZIONE AUTONOMA index.html PER GITHUB ====================
+    function optimizePhotoForExport(dataUrl, maxSide = 480, quality = 0.84) {
+      return new Promise((resolve) => {
+        if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+          return resolve(dataUrl || '');
         }
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const origW = img.naturalWidth || img.width;
+            const origH = img.naturalHeight || img.height;
+            if (!origW || !origH) return resolve(dataUrl);
+
+            const largest = Math.max(origW, origH);
+            const scale = largest > maxSide ? maxSide / largest : 1;
+            const targetW = Math.max(1, Math.round(origW * scale));
+            const targetH = Math.max(1, Math.round(origH * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = targetW;
+            canvas.height = targetH;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, targetW, targetH);
+            ctx.drawImage(img, 0, 0, targetW, targetH);
+
+            const optimized = canvas.toDataURL('image/jpeg', quality);
+            resolve(optimized && optimized.length < dataUrl.length ? optimized : (scale < 1 ? optimized : dataUrl));
+          } catch (_) {
+            resolve(dataUrl);
+          }
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      });
+    }
+
+    async function exportStandaloneIndexHtml() {
+      const exportBtn = document.getElementById('exportHtmlBtn');
+      if (exportBtn) exportBtn.disabled = true;
+      showToast('Ottimizzazione foto e preparazione index.html...');
+
+      try {
+        // 1. Raccoglie tutte le foto da memoria e IndexedDB
+        const idbPhotos = await loadPhotosFromIDB();
+        const allRawPhotos = { ...idbPhotos, ...state.photos };
+
+        // 2. Ottimizza ogni foto in JPEG (qualità 0.84, lato massimo 480px) per smartphone
+        const optimizedPhotos = {};
+        const photoCodes = Object.keys(allRawPhotos);
+        for (let i = 0; i < photoCodes.length; i++) {
+          const code = photoCodes[i];
+          const rawUrl = allRawPhotos[code];
+          if (rawUrl) {
+            optimizedPhotos[code] = await optimizePhotoForExport(rawUrl, 480, 0.84);
+          }
+        }
+
+        // 3. Raccoglie tutte le modifiche ai piatti (customItems, lockedPhotos, lockedItems)
+        const customItems = {};
+        state.menuItems.forEach(it => {
+          if (state.lockedItems[it.code]) {
+            customItems[it.code] = {
+              name: it.name,
+              pieces: it.pieces || '',
+              desc: it.desc || '',
+              price: Number(it.price) || 0
+            };
+          }
+        });
+
+        const embeddedPayload = {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          photos: optimizedPhotos,
+          customItems,
+          lockedPhotos: { ...state.lockedPhotos },
+          lockedItems: { ...state.lockedItems }
+        };
+
+        // 4. Clona il documento pulendo il DOM dinamico per evitare qualsiasi duplicazione
+        const docClone = document.documentElement.cloneNode(true);
+        const clearIds = ['catBar', 'menuContainer', 'modalOrderList', 'detailOrderControls'];
+        clearIds.forEach(id => {
+          const el = docClone.querySelector('#' + id);
+          if (el) el.innerHTML = '';
+        });
+
+        const hideIds = ['dishDetailModal', 'orderModal', 'stickyBottomBar', 'toastBox', 'activeFilterBanner', 'emptyState'];
+        hideIds.forEach(id => {
+          const el = docClone.querySelector('#' + id);
+          if (el) el.classList.add('hidden');
+        });
+
+        const cloneExportBtn = docClone.querySelector('#exportHtmlBtn');
+        if (cloneExportBtn) cloneExportBtn.removeAttribute('disabled');
+
+        // 5. Inserisce o sostituisce in modo pulito <script id="embedded-menu-data">
+        const safeJson = JSON.stringify(embeddedPayload).replace(/<\/script>/gi, '<\\/script>');
+        let dataScript = docClone.querySelector('#embedded-menu-data');
+        if (!dataScript) {
+          dataScript = document.createElement('script');
+          dataScript.id = 'embedded-menu-data';
+          const bodyEl = docClone.querySelector('body');
+          const firstScript = bodyEl ? bodyEl.querySelector('script') : null;
+          if (bodyEl && firstScript) {
+            bodyEl.insertBefore(dataScript, firstScript);
+          } else if (bodyEl) {
+            bodyEl.appendChild(dataScript);
+          }
+        }
+        dataScript.textContent = `window.__EMBEDDED_DATA__ = ${safeJson};`;
+
+        const finalHtml = '<!DOCTYPE html>\n' + docClone.outerHTML;
+        const blob = new Blob([finalHtml], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'index.html';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+        const sizeMb = (blob.size / (1024 * 1024)).toFixed(2);
+        showToast(`Esportato index.html con ${photoCodes.length} foto (${sizeMb} MB)!`);
+      } catch (err) {
+        console.error('Errore esportazione index.html:', err);
+        showToast('Errore durante l\'esportazione di index.html');
+      } finally {
+        if (exportBtn) exportBtn.disabled = false;
       }
     }
 
@@ -2560,6 +2778,7 @@
       const pdfInput = document.getElementById('pdfFileInput');
       document.getElementById('loadPdfHeaderBtn').addEventListener('click', () => pdfInput.click());
       document.getElementById('bannerLoadPdfBtn').addEventListener('click', () => pdfInput.click());
+      document.getElementById('exportHtmlBtn').addEventListener('click', exportStandaloneIndexHtml);
       pdfInput.addEventListener('change', (e) => {
         if (e.target.files && e.target.files[0]) {
           handlePdfFileSelected(e.target.files[0]);
