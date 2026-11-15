@@ -1,0 +1,2777 @@
+<!DOCTYPE html>
+<html lang="it" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>Masami Sushi — Ordine Rapido</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- PDF.js 3.11.174 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Tesseract.js v5 (Fallback OCR italiano se la pagina PDF è scansionata) -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          },
+          colors: {
+            masami: {
+              bg: '#0f1115',
+              card: '#171a21',
+              border: '#262b36',
+              vermilion: '#e63946',
+              gold: '#f4a261',
+              paper: '#faf7f2',
+              paperCard: '#ffffff',
+              paperBorder: '#e7e0d5',
+              ink: '#1c1917'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Nasconde scrollbar mantenendo scorrimento fluido su barra categorie */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { transform: translateY(18px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.18s ease-out forwards;
+    }
+    .animate-slide-up {
+      animation: slideUp 0.22s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-masami-paper dark:bg-masami-bg text-masami-ink dark:text-zinc-100 antialiased selection:bg-masami-vermilion selection:text-white min-h-screen">
+  <!-- Input file nascosto per PDF -->
+  <input id="pdfFileInput" type="file" accept=".pdf,application/pdf" class="hidden" />
+
+  <!-- ==================== HEADER FISSO + BARRA CATEGORIE ==================== -->
+  <header id="stickyHeader" class="sticky top-0 z-30 bg-masami-paper/95 dark:bg-masami-bg/95 backdrop-blur-md border-b border-masami-paperBorder dark:border-masami-border shadow-sm">
+    <div class="max-w-3xl mx-auto px-3 pt-2.5 pb-2">
+      <!-- Riga 1: Brand, Carica PDF, Salva HTML, Tema & Riepilogo Ordine -->
+      <div class="flex items-center justify-between gap-1.5 mb-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-[#e63946] to-rose-800 flex items-center justify-center shadow-md shadow-rose-900/30 shrink-0 border border-[#f4a261]/40">
+            <svg class="w-5 h-5 text-[#f4a261]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6c6 1.5 12 1.5 18 0" />
+              <path d="M4 10h16" />
+              <path d="M7 6v14" />
+              <path d="M17 6v14" />
+              <path d="M12 6v4" />
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5">
+              <h1 class="text-sm sm:text-base font-extrabold tracking-tight truncate">Masami Sushi</h1>
+              <span class="px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded-md bg-[#f4a261]/15 text-amber-700 dark:text-[#f4a261] border border-[#f4a261]/30 shrink-0">
+                Ordine Rapido
+              </span>
+            </div>
+            <p id="menuSubtitleInfo" class="text-[11px] text-stone-500 dark:text-zinc-400 truncate">Catalogo verificato • 207 voci</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <!-- Carica PDF -->
+          <button
+            id="loadPdfHeaderBtn"
+            type="button"
+            class="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl bg-[#e63946]/15 hover:bg-[#e63946]/25 text-[#e63946] dark:text-rose-300 border border-[#e63946]/40 text-[11px] font-bold transition active:scale-95"
+            title="Carica menu Sushi.pdf per ritagliare foto o riconoscere testo da pagina"
+          >
+            <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="12" y1="18" x2="12" y2="12"></line>
+              <polyline points="9 15 12 12 15 15"></polyline>
+            </svg>
+            <span id="loadPdfBtnLabel">Carica PDF</span>
+          </button>
+
+          <button
+            id="themeToggleBtn"
+            type="button"
+            aria-label="Cambia tema chiaro o scuro"
+            class="p-2 rounded-xl bg-stone-200/80 hover:bg-stone-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-stone-700 dark:text-[#f4a261] border border-stone-300 dark:border-zinc-700 transition active:scale-95"
+            title="Cambia tema (Antracite / Carta di Riso)"
+          >
+            <svg id="sunIcon" class="w-4 h-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+            </svg>
+            <svg id="moonIcon" class="w-4 h-4 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+            </svg>
+          </button>
+
+          <!-- Pulsante Riepilogo Chiamata -->
+          <button
+            id="headerOrderBtn"
+            type="button"
+            class="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-[#e63946] hover:bg-rose-600 text-white text-xs font-bold shadow-sm transition active:scale-95"
+          >
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+            <span>Ordine</span>
+            <span id="headerBadgeCount" class="px-1.5 py-0.5 text-[11px] font-mono font-extrabold rounded-md bg-[#f4a261] text-zinc-950">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Riga 2: Ricerca Istantanea + Filtro Solo Scelti -->
+      <div class="flex items-center gap-2 mb-2">
+        <div class="relative flex-1">
+          <svg class="w-4 h-4 text-stone-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.3-4.3"></path>
+          </svg>
+          <input
+            id="searchInput"
+            type="search"
+            inputmode="search"
+            autocomplete="off"
+            placeholder="Cerca numero (es. 901, 48, 315), piatto o ingrediente..."
+            class="w-full pl-9 pr-8 py-2 rounded-xl text-xs sm:text-sm bg-white dark:bg-masami-card border border-masami-paperBorder dark:border-masami-border placeholder:text-stone-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#e63946] transition"
+          />
+          <button
+            id="clearSearchBtn"
+            type="button"
+            aria-label="Cancella ricerca"
+            class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg bg-stone-200 dark:bg-zinc-800 text-stone-600 dark:text-zinc-300 flex items-center justify-center text-xs font-bold"
+          >
+            &times;
+          </button>
+        </div>
+
+        <button
+          id="onlySelectedBtn"
+          type="button"
+          aria-pressed="false"
+          class="px-3 py-2 rounded-xl text-xs font-bold border border-masami-paperBorder dark:border-masami-border bg-white dark:bg-masami-card text-stone-700 dark:text-zinc-300 hover:border-[#f4a261] transition shrink-0 active:scale-95"
+        >
+          Solo scelti
+        </button>
+      </div>
+
+      <!-- Riga 3: Barra Categorie con Frecce Sinistra/Destra e Centratura Omogenea -->
+      <div class="flex items-center gap-1.5">
+        <button
+          id="catScrollLeft"
+          type="button"
+          aria-label="Scorri categorie a sinistra"
+          class="w-8 h-8 rounded-full bg-white dark:bg-masami-card border border-masami-paperBorder dark:border-masami-border text-stone-700 dark:text-zinc-200 hover:border-[#f4a261] flex items-center justify-center shadow-sm shrink-0 transition active:scale-90 disabled:opacity-35 disabled:pointer-events-none"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+
+        <nav
+          id="catBar"
+          aria-label="Categorie menu"
+          class="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 scroll-smooth"
+        >
+          <!-- Pillole categorie generate via JS -->
+        </nav>
+
+        <button
+          id="catScrollRight"
+          type="button"
+          aria-label="Scorri categorie a destra"
+          class="w-8 h-8 rounded-full bg-white dark:bg-masami-card border border-masami-paperBorder dark:border-masami-border text-stone-700 dark:text-zinc-200 hover:border-[#f4a261] flex items-center justify-center shadow-sm shrink-0 transition active:scale-90 disabled:opacity-35 disabled:pointer-events-none"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CATALOGO CONTINUO UNICO ==================== -->
+  <main class="max-w-3xl mx-auto px-3 pt-2.5 pb-28">
+    <!-- Banner informativo compatto sullo stato PDF -->
+    <div id="pdfStatusBanner" class="mb-3 p-3 rounded-2xl bg-gradient-to-r from-[#e63946]/12 to-[#f4a261]/10 border border-[#e63946]/35 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+      <div class="min-w-0">
+        <p class="text-xs font-extrabold text-[#e63946] dark:text-[#f4a261]">
+          Carica <code>menu Sushi.pdf</code> per ritagliare foto o riconoscere testo
+        </p>
+        <p class="text-[11px] text-stone-600 dark:text-zinc-300 mt-0.5 leading-relaxed">
+          Tutti i <strong>207 piatti, descrizioni e prezzi</strong> sono già verificati e pronti. Caricando il PDF potrai aprire qualsiasi piatto e usare <strong>Ritaglia Foto</strong> o <strong>Riconosci Testo da PDF</strong> direttamente sulla pagina giusta.
+        </p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          id="bannerLoadPdfBtn"
+          type="button"
+          class="px-3.5 py-2 rounded-xl bg-[#e63946] hover:bg-rose-600 text-white text-xs font-extrabold shadow active:scale-95 transition"
+        >
+          Carica PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- Stato filtro attivo -->
+    <div id="activeFilterBanner" class="hidden mb-2.5 px-3 py-1.5 rounded-xl bg-[#f4a261]/15 border border-[#f4a261]/35 flex items-center justify-between text-xs">
+      <span id="activeFilterText" class="font-semibold text-amber-800 dark:text-amber-200">Filtro attivo</span>
+      <button id="clearAllFiltersInlineBtn" type="button" class="font-bold text-[#e63946] dark:text-[#f4a261] underline">
+        Mostra tutto il menu
+      </button>
+    </div>
+
+    <!-- Container Elenco Unico Continuo -->
+    <div id="menuContainer" class="space-y-3">
+      <!-- Popolato dinamicamente via JS -->
+    </div>
+
+    <!-- Stato Vuoto Ricerca -->
+    <div id="emptyState" class="hidden py-14 text-center">
+      <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-stone-200/80 dark:bg-zinc-800/80 flex items-center justify-center text-[#e63946]">
+        <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+      </div>
+      <h2 class="text-base font-bold mb-1">Nessun piatto trovato</h2>
+      <p class="text-xs text-stone-500 dark:text-zinc-400 mb-4">Prova a cercare un altro numero, nome o ingrediente.</p>
+      <button
+        id="resetFiltersBtn"
+        type="button"
+        class="px-4 py-2 rounded-xl bg-[#e63946] hover:bg-rose-600 text-white text-xs font-bold shadow transition"
+      >
+        Torna a tutto il menu
+      </button>
+    </div>
+  </main>
+
+  <!-- ==================== STICKY BOTTOM BAR (CARRELLO RAPIDO) ==================== -->
+  <div
+    id="stickyBottomBar"
+    class="hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-masami-card/95 backdrop-blur-md border-t border-masami-paperBorder dark:border-masami-border shadow-[0_-8px_24px_rgba(0,0,0,0.3)] transition-transform duration-200"
+  >
+    <div class="max-w-3xl mx-auto px-3 py-2.5 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="px-2.5 py-1.5 rounded-xl bg-[#f4a261]/15 border border-[#f4a261]/35 text-center shrink-0">
+          <div id="bottomTotalQty" class="font-mono text-sm font-extrabold text-amber-700 dark:text-[#f4a261] leading-none">0</div>
+          <div id="bottomQtyLabel" class="text-[10px] font-semibold text-amber-800/80 dark:text-amber-200/80 mt-0.5">piatti</div>
+        </div>
+        <div class="min-w-0">
+          <div class="text-[11px] uppercase tracking-wider font-semibold text-stone-500 dark:text-zinc-400">Totale Stimato</div>
+          <div id="bottomTotalPrice" class="font-mono text-lg font-extrabold text-stone-900 dark:text-white leading-tight">€ 0,00</div>
+        </div>
+      </div>
+
+      <button
+        id="openOrderModalBtn"
+        type="button"
+        class="flex items-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-[#e63946] to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold text-sm shadow-lg shadow-rose-900/30 border border-rose-400/20 active:scale-95 transition shrink-0"
+      >
+        <svg class="w-4 h-4 text-[#f4a261]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+        </svg>
+        <span>Riepilogo Chiamata</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODALE DETTAGLIO PIATTO, RITAGLIO FOTO & RICONOSCI TESTO PDF ==================== -->
+  <div
+    id="dishDetailModal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="detailModalTitle"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in"
+  >
+    <div class="w-full max-w-xl max-h-[94vh] flex flex-col bg-masami-paper dark:bg-masami-card text-stone-900 dark:text-zinc-100 rounded-2xl border border-masami-paperBorder dark:border-masami-border shadow-2xl overflow-hidden">
+      <!-- Header Modale Dettaglio -->
+      <div class="px-4 py-3 bg-zinc-950 text-white flex items-center justify-between border-b border-zinc-800 shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <span id="detailCodeBadge" class="px-2 py-0.5 rounded-lg bg-[#f4a261] text-zinc-950 font-mono text-xs font-extrabold shrink-0">N. 901</span>
+          <h2 id="detailModalTitle" class="text-sm sm:text-base font-extrabold truncate">SCAMPI</h2>
+          <span id="detailLockedBadge" class="hidden px-1.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold shrink-0">
+            🔒 Modificata
+          </span>
+        </div>
+        <button
+          id="closeDetailModalBtn"
+          type="button"
+          aria-label="Chiudi dettaglio"
+          class="w-8 h-8 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xl font-bold shrink-0"
+        >
+          &times;
+        </button>
+      </div>
+
+      <!-- Corpo Scorrevole -->
+      <div class="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-3">
+        <!-- VISTA 1: Anteprima Foto + Modulo Dati Piatto -->
+        <div id="detailFormView" class="space-y-3">
+          <!-- Riquadro Foto -->
+          <div id="detailPhotoWrapper" class="relative rounded-2xl overflow-hidden bg-zinc-950 border border-stone-200 dark:border-zinc-800 flex items-center justify-center min-h-[175px] max-h-[42vh]">
+            <img id="detailImg" src="" alt="" class="hidden w-full h-auto max-h-[42vh] object-contain" />
+            <div id="detailNoPhotoBox" class="p-5 text-center">
+              <div class="w-11 h-11 mx-auto mb-2 rounded-2xl bg-zinc-900 border border-zinc-800 text-[#f4a261] flex items-center justify-center">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                  <circle cx="12" cy="13" r="4"></circle>
+                </svg>
+              </div>
+              <p class="text-xs sm:text-sm font-bold text-zinc-200">Nessuna foto abbinata</p>
+              <p id="detailNoPhotoHint" class="text-[11px] text-zinc-400 mt-1">Usa <strong>📷 Ritaglia Foto da PDF</strong> oppure <strong>🖼️ Carica Foto</strong> qui sotto.</p>
+            </div>
+          </div>
+
+          <!-- Pulsanti Strumenti PDF & Foto -->
+          <div id="detailEditToolsBar" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              id="openPdfPhotoCropBtn"
+              type="button"
+              class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-[#f4a261]/15 hover:bg-[#f4a261]/25 text-amber-800 dark:text-[#f4a261] border border-[#f4a261]/40 text-xs font-extrabold transition active:scale-95"
+            >
+              <span>📷</span>
+              <span>Ritaglia Foto da PDF</span>
+            </button>
+
+            <button
+              id="openPdfTextRecognizeBtn"
+              type="button"
+              class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 border border-emerald-500/40 text-xs font-extrabold transition active:scale-95"
+            >
+              <span>📝</span>
+              <span>Riconosci Testo da PDF</span>
+            </button>
+
+            <button
+              id="uploadSinglePhotoBtn"
+              type="button"
+              class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-stone-800 dark:text-zinc-200 border border-stone-300 dark:border-zinc-700 text-xs font-bold transition active:scale-95"
+            >
+              <span>🖼️</span>
+              <span>Carica Foto</span>
+            </button>
+          </div>
+
+          <!-- Form Campi Piatto -->
+          <div id="dishFieldsCard" class="p-3 rounded-2xl bg-stone-100 dark:bg-zinc-950/75 border border-masami-paperBorder dark:border-masami-border space-y-2.5 transition-all">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-extrabold uppercase tracking-wider text-stone-500 dark:text-zinc-400">
+                Dati Piatto
+              </span>
+              <div class="flex items-center gap-2">
+                <span id="detailCategoryLabel" class="text-[11px] font-bold text-[#e63946] dark:text-[#f4a261]">Piatti Speciali</span>
+                <button
+                  id="unlockDishBtn"
+                  type="button"
+                  class="hidden text-[10px] font-bold px-2 py-0.5 rounded-md bg-zinc-200 dark:bg-zinc-800 text-stone-600 dark:text-zinc-300 hover:text-[#e63946]"
+                  title="Rimuovi blocco modifica"
+                >
+                  Sblocca
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <div class="sm:col-span-6">
+                <label for="editDishNameInput" class="block text-[10px] font-bold text-stone-500 dark:text-zinc-400 mb-0.5">Nome Piatto</label>
+                <input
+                  id="editDishNameInput"
+                  type="text"
+                  class="w-full px-2.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-masami-card border border-stone-300 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#f4a261]"
+                />
+              </div>
+              <div class="sm:col-span-3">
+                <label for="editDishPiecesInput" class="block text-[10px] font-bold text-stone-500 dark:text-zinc-400 mb-0.5">Pezzi</label>
+                <input
+                  id="editDishPiecesInput"
+                  type="text"
+                  placeholder="es. 2pz"
+                  class="w-full px-2.5 py-2 rounded-xl text-xs font-mono font-bold bg-white dark:bg-masami-card border border-stone-300 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#f4a261]"
+                />
+              </div>
+              <div class="sm:col-span-3">
+                <label for="editDishPriceInput" class="block text-[10px] font-bold text-stone-500 dark:text-zinc-400 mb-0.5">Prezzo (€)</label>
+                <input
+                  id="editDishPriceInput"
+                  type="number"
+                  step="0.10"
+                  min="0"
+                  class="w-full px-2.5 py-2 rounded-xl text-xs font-mono font-bold bg-white dark:bg-masami-card border border-stone-300 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#f4a261]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label for="editDishDescInput" class="block text-[10px] font-bold text-stone-500 dark:text-zinc-400 mb-0.5">Ingredienti essenziali</label>
+              <textarea
+                id="editDishDescInput"
+                rows="2"
+                placeholder="Descrizione ingredienti..."
+                class="w-full px-2.5 py-2 rounded-xl text-xs bg-white dark:bg-masami-card border border-stone-300 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#f4a261] resize-none"
+              ></textarea>
+            </div>
+
+            <div class="flex items-center justify-end pt-0.5">
+              <button
+                id="saveAndLockDishBtn"
+                type="button"
+                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow transition active:scale-95"
+              >
+                <span>🔒</span>
+                <span>Salva e Blocca</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VISTA 2: Visualizzatore Interattivo Pagina PDF (Ritaglia Foto / Riconosci Testo) -->
+        <div id="detailPdfToolView" class="hidden space-y-2.5">
+          <!-- Commutatore Modalità Ritaglio Foto vs Riconosci Testo -->
+          <div class="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-stone-200 dark:bg-zinc-950 border border-stone-300 dark:border-zinc-800">
+            <button
+              id="modePhotoCropTab"
+              type="button"
+              class="py-2 px-2.5 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5"
+            >
+              <span>📷</span>
+              <span>Ritaglia Foto</span>
+            </button>
+            <button
+              id="modeTextRecognizeTab"
+              type="button"
+              class="py-2 px-2.5 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5"
+            >
+              <span>📝</span>
+              <span>Riconosci Testo Dati Piatto</span>
+            </button>
+          </div>
+
+          <!-- Navigazione Pagina PDF -->
+          <div class="flex items-center justify-between gap-2 bg-stone-100 dark:bg-zinc-950 p-2 rounded-xl border border-stone-200 dark:border-zinc-800">
+            <div class="flex items-center gap-1.5 text-xs">
+              <span class="font-bold">Pagina:</span>
+              <button id="pdfPrevPageBtn" type="button" class="w-7 h-7 rounded-lg bg-stone-200 dark:bg-zinc-800 font-bold hover:bg-stone-300 dark:hover:bg-zinc-700">&larr;</button>
+              <input id="pdfPageInput" type="number" min="1" value="1" class="w-14 text-center py-1 rounded-lg bg-white dark:bg-zinc-900 border border-stone-300 dark:border-zinc-700 font-mono font-bold" />
+              <span id="pdfTotalPagesLabel" class="text-stone-500 dark:text-zinc-400 font-mono">/ --</span>
+              <button id="pdfNextPageBtn" type="button" class="w-7 h-7 rounded-lg bg-stone-200 dark:bg-zinc-800 font-bold hover:bg-stone-300 dark:hover:bg-zinc-700">&rarr;</button>
+            </div>
+            <button id="backToFormViewBtn" type="button" class="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-stone-200 dark:bg-zinc-800 hover:text-[#e63946] transition">
+              &larr; Torna alla scheda
+            </button>
+          </div>
+
+          <!-- Istruzioni contestuali -->
+          <p id="pdfToolInstruction" class="text-[11px] font-medium text-stone-600 dark:text-zinc-300">
+            Trascina con il mouse o il dito un rettangolo attorno al blocco di testo del piatto sulla pagina del PDF.
+          </p>
+
+          <!-- Canvas Pagina PDF -->
+          <div class="relative rounded-xl overflow-hidden border-2 border-dashed border-[#f4a261]/60 bg-zinc-950 flex justify-center touch-none select-none">
+            <canvas id="pdfPageCanvas" class="max-w-full h-auto cursor-crosshair"></canvas>
+            <!-- Overlay stato elaborazione OCR -->
+            <div id="ocrLoadingOverlay" class="hidden absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center p-4 text-center">
+              <div class="w-8 h-8 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin mb-2"></div>
+              <p class="text-xs font-extrabold text-white">Riconoscimento testo / OCR in corso...</p>
+              <p class="text-[11px] text-zinc-300 mt-0.5">Lettura nome piatto, pezzi, ingredienti e prezzo</p>
+            </div>
+          </div>
+
+          <!-- Anteprima Risultato Riconoscimento Testo -->
+          <div id="recognizedPreviewBox" class="hidden p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/40 space-y-2.5 animate-slide-up">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-extrabold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                <span>✨</span>
+                <span>Dati Riconosciuti dall'Area Selezionata</span>
+              </span>
+              <span id="recognitionMethodBadge" class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono text-[10px] font-bold">
+                Testo PDF
+              </span>
+            </div>
+
+            <div class="grid grid-cols-12 gap-2 text-xs">
+              <div class="col-span-6 p-2 rounded-xl bg-white/80 dark:bg-zinc-900/90 border border-emerald-500/25">
+                <div class="text-[10px] font-bold uppercase text-stone-400 dark:text-zinc-500">Nome Piatto</div>
+                <div id="previewRecName" class="font-extrabold text-stone-900 dark:text-white mt-0.5 break-words">—</div>
+              </div>
+              <div class="col-span-3 p-2 rounded-xl bg-white/80 dark:bg-zinc-900/90 border border-emerald-500/25">
+                <div class="text-[10px] font-bold uppercase text-stone-400 dark:text-zinc-500">Pezzi</div>
+                <div id="previewRecPieces" class="font-mono font-extrabold text-amber-700 dark:text-[#f4a261] mt-0.5">—</div>
+              </div>
+              <div class="col-span-3 p-2 rounded-xl bg-white/80 dark:bg-zinc-900/90 border border-emerald-500/25">
+                <div class="text-[10px] font-bold uppercase text-stone-400 dark:text-zinc-500">Prezzo (€)</div>
+                <div id="previewRecPrice" class="font-mono font-extrabold text-[#e63946] dark:text-emerald-400 mt-0.5">—</div>
+              </div>
+              <div class="col-span-12 p-2 rounded-xl bg-white/80 dark:bg-zinc-900/90 border border-emerald-500/25">
+                <div class="text-[10px] font-bold uppercase text-stone-400 dark:text-zinc-500">Ingredienti essenziali</div>
+                <div id="previewRecDesc" class="text-stone-700 dark:text-zinc-200 mt-0.5 break-words">—</div>
+              </div>
+            </div>
+
+            <details class="text-[11px] text-stone-500 dark:text-zinc-400">
+              <summary class="cursor-pointer font-semibold hover:text-stone-800 dark:hover:text-zinc-200">Mostra testo grezzo letto</summary>
+              <pre id="previewRawText" class="mt-1 p-2 rounded-lg bg-black/10 dark:bg-black/40 whitespace-pre-wrap font-mono text-[10px]"></pre>
+            </details>
+
+            <button
+              id="applyRecognizedFieldsBtn"
+              type="button"
+              class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
+            >
+              <span>✅</span>
+              <span>Applica ai Campi Piatto</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Modale Dettaglio -->
+      <div class="px-4 py-3 bg-white dark:bg-zinc-950 border-t border-masami-paperBorder dark:border-masami-border flex items-center justify-between gap-2 shrink-0">
+        <input id="singleDishPhotoInput" type="file" accept="image/*" class="hidden" />
+        <span id="detailPdfPageHint" class="text-[11px] font-mono text-stone-500 dark:text-zinc-400">
+          Pagina PDF: —
+        </span>
+        <div id="detailOrderControls" class="ml-auto flex items-center gap-2">
+          <!-- Stepper ordine popolato via JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODALE DETTATURA ORDINE TELEFONICO ==================== -->
+  <div
+    id="orderModal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modalTitle"
+    class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in"
+  >
+    <div class="w-full sm:max-w-lg max-h-[92vh] sm:max-h-[88vh] flex flex-col bg-masami-paper dark:bg-masami-card text-stone-900 dark:text-zinc-100 rounded-t-3xl sm:rounded-2xl border border-masami-paperBorder dark:border-masami-border shadow-2xl animate-slide-up overflow-hidden">
+      <div class="px-4 py-3.5 bg-gradient-to-r from-zinc-950 to-zinc-900 text-white flex items-center justify-between border-b border-zinc-800 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-[#e63946]/20 border border-[#e63946]/40 flex items-center justify-center text-[#e63946]">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 id="modalTitle" class="text-base font-extrabold tracking-tight">Riepilogo per Chiamata</h2>
+            <p class="text-[11px] text-zinc-400">Spunta i codici man mano che li detti al telefono</p>
+          </div>
+        </div>
+        <button
+          id="closeOrderModalBtn"
+          type="button"
+          aria-label="Chiudi riepilogo"
+          class="w-9 h-9 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 flex items-center justify-center text-xl font-bold transition"
+        >
+          &times;
+        </button>
+      </div>
+
+      <a
+        href="tel:0308082188"
+        class="px-4 py-2 bg-[#e63946]/12 hover:bg-[#e63946]/20 border-b border-[#e63946]/30 flex items-center justify-between gap-2 text-xs transition shrink-0"
+      >
+        <span class="font-bold text-stone-700 dark:text-zinc-200 flex items-center gap-1.5">
+          <span class="text-[#e63946]">📞</span>
+          <span>Chiama Masami Sushi:</span>
+        </span>
+        <span class="font-mono text-sm font-extrabold text-[#e63946] dark:text-[#f4a261] tracking-wide underline underline-offset-2">
+          0308082188
+        </span>
+      </a>
+
+      <div class="px-4 py-2 bg-stone-100 dark:bg-zinc-950/70 border-b border-masami-paperBorder dark:border-masami-border flex items-center justify-between gap-2 text-xs shrink-0">
+        <div class="flex items-center gap-1 bg-stone-200/80 dark:bg-zinc-800 p-0.5 rounded-lg">
+          <button
+            id="sortByCodeBtn"
+            type="button"
+            class="px-2.5 py-1 rounded-md font-bold transition bg-white dark:bg-zinc-700 text-stone-900 dark:text-white shadow-sm"
+          >
+            N. Crescente
+          </button>
+          <button
+            id="sortByAddedBtn"
+            type="button"
+            class="px-2.5 py-1 rounded-md font-medium transition text-stone-600 dark:text-zinc-400"
+          >
+            Inserimento
+          </button>
+        </div>
+
+        <div id="dictationProgress" class="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+          0 / 0 dettati
+        </div>
+      </div>
+
+      <div id="modalOrderList" class="flex-1 overflow-y-auto p-3 space-y-2">
+        <!-- Popolato dinamicamente -->
+      </div>
+
+      <div class="p-4 bg-white dark:bg-zinc-950 border-t border-masami-paperBorder dark:border-masami-border space-y-3 shrink-0">
+        <div class="flex items-center justify-between px-3 py-2.5 rounded-xl bg-stone-100 dark:bg-masami-card border border-masami-paperBorder dark:border-masami-border">
+          <div>
+            <span class="text-xs text-stone-500 dark:text-zinc-400 block">Totale Piatti</span>
+            <span id="modalTotalQty" class="font-mono text-base font-extrabold">0 piatti</span>
+          </div>
+          <div class="text-right">
+            <span class="text-xs text-stone-500 dark:text-zinc-400 block">Totale Stimato</span>
+            <span id="modalTotalPrice" class="font-mono text-xl font-extrabold text-[#e63946] dark:text-[#f4a261]">€ 0,00</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <button
+            id="copyOrderBtn"
+            type="button"
+            class="flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow transition active:scale-95"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span>Copia per WhatsApp</span>
+          </button>
+
+          <button
+            id="clearOrderBtn"
+            type="button"
+            class="flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-stone-800 dark:text-zinc-200 font-bold text-xs sm:text-sm border border-stone-300 dark:border-zinc-700 transition active:scale-95"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span id="clearOrderBtnText">Svuota Lista</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TOAST NOTIFICA ==================== -->
+  <div
+    id="toastContainer"
+    aria-live="polite"
+    class="fixed top-24 inset-x-0 z-50 flex justify-center pointer-events-none px-4"
+  >
+    <div
+      id="toastBox"
+      class="hidden px-4 py-2.5 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-bold shadow-xl border border-[#f4a261]/50 flex items-center gap-2"
+    >
+      <span class="text-[#f4a261] dark:text-[#e63946] text-sm">&check;</span>
+      <span id="toastMessage">Operazione completata</span>
+    </div>
+  </div>
+
+  <!-- ==================== SCRIPT APPLICAZIONE ==================== -->
+  <script>
+    // Snapshot incorporato da "Salva HTML"
+    window.__EMBEDDED_SNAPSHOT__ = window.__EMBEDDED_SNAPSHOT__ || null;
+
+    // Disabilita worker esterno PDF.js per garantire funzionamento sia su https:// che su file:// locale
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    }
+
+    // ==================== CATEGORIE E CATALOGO VERIFICATO AL 100% ====================
+    const CATEGORIES = [
+      { id: 'speciali', label: 'Piatti Speciali' },
+      { id: 'antipasti', label: 'Antipasti' },
+      { id: 'tartare', label: 'Tartare' },
+      { id: 'carpaccio', label: 'Carpaccio' },
+      { id: 'sashimi', label: 'Sashimi' },
+      { id: 'dotou', label: 'Dotou e Sushi Mix' },
+      { id: 'barca', label: 'Barca' },
+      { id: 'chirashi', label: 'Chirashi e Onigiri' },
+      { id: 'nigiri', label: 'Nigiri' },
+      { id: 'gunkan', label: 'Gunkan' },
+      { id: 'temaki', label: 'Temaki' },
+      { id: 'hosomaki', label: 'Hosomaki' },
+      { id: 'futomaki', label: 'Futomaki' },
+      { id: 'uramaki', label: 'Uramaki' },
+      { id: 'venere', label: 'Uramaki Riso Venere' },
+      { id: 'zuppa', label: 'Zuppa' },
+      { id: 'spaghetti', label: 'Spaghetti' },
+      { id: 'ramen', label: 'Ramen' },
+      { id: 'riso', label: 'Riso' },
+      { id: 'secondi', label: 'Secondi' },
+      { id: 'teppanyaki', label: 'Teppanyaki' },
+      { id: 'tempura', label: 'Tempura' },
+      { id: 'pagamento', label: 'Piatti A Pagamento' },
+      { id: 'dolce', label: 'Dolce' },
+      { id: 'bevande', label: 'Bevande' },
+      { id: 'vini', label: 'Lista Vini' }
+    ];
+
+    const VERIFIED_MENU_ITEMS = [
+      // Piatti Speciali (cat: 'speciali')
+      { code: '901', name: 'SCAMPI', cat: 'speciali', pieces: '1pz', desc: 'Scampi e salsa ponzu', price: 3.00, pdfPage: 5 },
+      { code: '902', name: 'GUNKAN SPECIAL PISTACCHIO', cat: 'speciali', pieces: '', desc: "Polpette di riso avvolto con salmone all'esterno, philadelphia e pistacchio", price: 6.00, pdfPage: 6 },
+      { code: '903', name: 'TAKOYAKI', cat: 'speciali', pieces: '2pz', desc: 'Polpette di polipo e patate fritte con maionese, salsa teriyaki e tonno essiccato', price: 5.00, pdfPage: 6 },
+      { code: '904', name: 'DOTOU SPECIALE', cat: 'speciali', pieces: '2pz', desc: 'Bocconcino di salmone con insalata, gambero in tempura e salsa teriyaki', price: 6.00, pdfPage: 6 },
+      { code: '905', name: 'AMAEBI', cat: 'speciali', pieces: '2pz', desc: 'Amaebi e salsa ponzu', price: 6.00, pdfPage: 6 },
+      { code: '906', name: 'CAPESANTE', cat: 'speciali', pieces: '1pz', desc: 'Capesante cruda con salsa ponzu', price: 3.00, pdfPage: 7 },
+      { code: '907', name: 'SASHIMI SALMONE AFFUMICATO', cat: 'speciali', pieces: '', desc: 'Sashimi di salmone affumicato', price: 9.00, pdfPage: 7 },
+      { code: '908', name: 'CARPACCIO MASAMI', cat: 'speciali', pieces: '', desc: 'Fettine sottili di salmone, tonno branzino e amaebi condito con salsa ponzu', price: 11.00, pdfPage: 7 },
+      { code: '909', name: 'TARTARE MASAMI', cat: 'speciali', pieces: '', desc: 'Tartare di salmone, avocado, cetriolo e mango con riso venere', price: 14.00, pdfPage: 7 },
+      { code: '910', name: 'SPECIAL MASAMI', cat: 'speciali', pieces: '', desc: 'Uramaki con tonno fritto e philadelphia guarnito con tonno e salsa mango', price: 15.00, pdfPage: 8 },
+      { code: '911', name: 'SUSHI PARTY', cat: 'speciali', pieces: '', desc: '4 gunkan 5 nighiri', price: 16.00, pdfPage: 8 },
+      { code: '912', name: 'MASAMI POKE', cat: 'speciali', pieces: '', desc: 'Ciotola di riso con tartare di salmone avocado e cetriolo', price: 7.00, pdfPage: 8 },
+
+      // Antipasti (cat: 'antipasti')
+      { code: '01', name: 'INVOLTINO GAMBERI', cat: 'antipasti', pieces: '', desc: 'Gamberi, sfoglia', price: 4.00, pdfPage: 9 },
+      { code: '02', name: 'INVOLTINO PRIMAVERA', cat: 'antipasti', pieces: '', desc: 'Verdure miste, sfoglia', price: 3.00, pdfPage: 9 },
+      { code: '03', name: 'CHELE DI GRANCHIO', cat: 'antipasti', pieces: '', desc: 'Chele di granchio fritto', price: 4.00, pdfPage: 9 },
+      { code: '04', name: 'PATATINE FRITTE', cat: 'antipasti', pieces: '', desc: 'Patatine', price: 3.00, pdfPage: 9 },
+      { code: '05', name: 'NUVOLE DI DRAGON', cat: 'antipasti', pieces: '', desc: 'Croccanti chips di gamberi', price: 3.00, pdfPage: 10 },
+      { code: '06', name: 'GYOZA', cat: 'antipasti', pieces: '', desc: 'Ravioli di carne e verdure', price: 4.00, pdfPage: 10 },
+      { code: '07', name: 'SHAOMAI', cat: 'antipasti', pieces: '', desc: 'Ravioli di carne e gamberi', price: 4.00, pdfPage: 10 },
+      { code: '08', name: 'EBI GYOZA', cat: 'antipasti', pieces: '', desc: 'Ravioli di gamberi', price: 5.00, pdfPage: 10 },
+      { code: '09', name: 'GYOZA VERDURE', cat: 'antipasti', pieces: '', desc: 'Ravioli di verdure miste', price: 4.00, pdfPage: 11 },
+      { code: '10', name: 'GYOZA ALLA GRIGLIA', cat: 'antipasti', pieces: '', desc: 'Ravioli di pollo alla griglia', price: 4.00, pdfPage: 11 },
+      { code: '11', name: 'BAOZI', cat: 'antipasti', pieces: '', desc: 'Pane cinese al vapore', price: 3.00, pdfPage: 11 },
+      { code: '12', name: 'PANE CONIGLIO', cat: 'antipasti', pieces: '', desc: 'Pane cinese dolce al vapore', price: 4.00, pdfPage: 11 },
+      { code: '13', name: 'GOMA WAKAME', cat: 'antipasti', pieces: '', desc: 'Alghe agro piccante', price: 5.00, pdfPage: 12 },
+      { code: '14', name: 'WAKAME', cat: 'antipasti', pieces: '', desc: 'Alghe nero', price: 5.00, pdfPage: 12 },
+      { code: '15', name: 'YAKI WAKAME', cat: 'antipasti', pieces: '', desc: 'Insalata di alghe nero e frutti di mare', price: 7.00, pdfPage: 12 },
+      { code: '16', name: 'EDAMAME', cat: 'antipasti', pieces: '', desc: 'Fagiolini di soia', price: 3.00, pdfPage: 12 },
+      { code: '17', name: 'INSALATA MISTA', cat: 'antipasti', pieces: '', desc: 'Insalata Mista di Stagione e salsa di sesamo', price: 5.00, pdfPage: 13 },
+      { code: '18', name: 'INSALATA FRUTTI DI MARE', cat: 'antipasti', pieces: '', desc: 'Insalata Mista con frutti di mare e salsa di sesamo', price: 6.00, pdfPage: 13 },
+
+      // Tartare (cat: 'tartare')
+      { code: '20', name: 'TARTARE MISTA', cat: 'tartare', pieces: '', desc: 'Tartare di salmone, tonno e avocado con salsa dello chef', price: 12.00, pdfPage: 14 },
+      { code: '21', name: 'TARTARE SAKE', cat: 'tartare', pieces: '', desc: 'Tartare di salmone, avocado e salsa dello chef', price: 12.00, pdfPage: 15 },
+      { code: '22', name: 'TARTARE GAMBERI', cat: 'tartare', pieces: '', desc: 'Tartare di gamberi cotti, avocado con riso venere e salsa dello chef', price: 13.00, pdfPage: 15 },
+
+      // Carpaccio (cat: 'carpaccio')
+      { code: '23', name: 'CARPACCIO SAKE', cat: 'carpaccio', pieces: '', desc: 'Fettine sottili di salmone condito con salsa ponzu', price: 10.00, pdfPage: 16 },
+      { code: '24', name: 'CARPACCIO SUZUKI', cat: 'carpaccio', pieces: '', desc: 'Fettine sottili di branzino condito con salsa ponzu', price: 10.00, pdfPage: 16 },
+      { code: '25', name: 'CARPACCIO MISTO', cat: 'carpaccio', pieces: '', desc: 'Fettine sottili di salmone, tonno e branzino condito con salsa ponzu', price: 10.00, pdfPage: 16 },
+
+      // Sashimi (cat: 'sashimi')
+      { code: '26', name: 'SASHIMI SALMONE', cat: 'sashimi', pieces: '', desc: 'Fettine di salmone', price: 9.00, pdfPage: 17 },
+      { code: '27', name: 'SASHIMI BRANZINO', cat: 'sashimi', pieces: '', desc: 'Fettine di branzino', price: 9.00, pdfPage: 17 },
+      { code: '28', name: 'SASHIMI MISTO', cat: 'sashimi', pieces: '', desc: 'Fettine di salmone, branzino e tonno', price: 11.00, pdfPage: 17 },
+
+      // Dotou e Sushi Mix (cat: 'dotou')
+      { code: '29', name: 'DOTOU SAKE', cat: 'dotou', pieces: '2pz', desc: 'Bocconcino di salmone con insalata, cetriolo e mandorle', price: 5.00, pdfPage: 18 },
+      { code: '30', name: 'DOTOU SCOTTATO', cat: 'dotou', pieces: '2pz', desc: 'Bocconcino di salmone scottato con insalata, cetriolo e salsa teriyaki', price: 5.00, pdfPage: 18 },
+      { code: '31', name: 'SUSHI MIX', cat: 'dotou', pieces: '12pz', desc: 'Sushi misto 12 pezzi con hossomaki, uramaki e nigiri', price: 12.00, pdfPage: 18 },
+
+      // Barca (cat: 'barca')
+      { code: '32', name: 'BARCA', cat: 'barca', pieces: '', desc: 'Misto con nigiri, hossomaki, uramaki, gunkan e sashimi', price: 32.00, pdfPage: 19 },
+
+      // Chirashi e Onigiri (cat: 'chirashi')
+      { code: '33', name: 'CHIRASHI SAKE', cat: 'chirashi', pieces: '', desc: 'Riso e fettine di salmone', price: 7.00, pdfPage: 20 },
+      { code: '34', name: 'CHIRASHI MISTO', cat: 'chirashi', pieces: '', desc: 'Riso e fettine di salmone, tonno e branzino', price: 7.00, pdfPage: 20 },
+      { code: '35', name: 'ONIGIRI SAKE', cat: 'chirashi', pieces: '', desc: 'Triangolo di riso ripieno con salmone crudo', price: 7.00, pdfPage: 20 },
+      { code: '36', name: 'ONIGIRI MIURA', cat: 'chirashi', pieces: '', desc: 'Triangolo di riso ripieno con salmone saltato', price: 7.00, pdfPage: 20 },
+
+      // Nigiri (cat: 'nigiri')
+      { code: '40', name: 'NIGIRI SAKE', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con salmone crudo', price: 3.00, pdfPage: 21 },
+      { code: '41', name: 'NIGIRI MAGURO', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con tonno', price: 4.00, pdfPage: 21 },
+      { code: '42', name: 'NIGIRI SUZUKI', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con branzino', price: 3.00, pdfPage: 21 },
+      { code: '43', name: 'NIGIRI TAKO', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con polipo', price: 3.00, pdfPage: 21 },
+      { code: '44', name: 'NIGIRI EBI', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con gambero cotto', price: 3.00, pdfPage: 22 },
+      { code: '45', name: 'NIGIRI UNAGI', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con anguilla', price: 4.00, pdfPage: 22 },
+      { code: '46', name: 'NIGIRI SAKE SCOTTATO', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con salmone scottato e salsa dello chef', price: 5.00, pdfPage: 23 },
+      { code: '47', name: 'NIGIRI SUZUKI SCOTTATO', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso con branzino scottato e salsa dello chef', price: 5.00, pdfPage: 23 },
+      { code: '48', name: 'NIGIRI SAKE VENERE', cat: 'nigiri', pieces: '2pz', desc: 'Bocconcino di riso venere con salmone crudo', price: 4.00, pdfPage: 23 },
+
+      // Gunkan (cat: 'gunkan')
+      { code: '50', name: 'GUNKAN SPICY SAKE', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con alghe all'esterno e salmone piccante", price: 4.00, pdfPage: 24 },
+      { code: '51', name: 'GUNKAN SPICY MAGURO', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con alghe all'esterno e tonno piccante", price: 4.00, pdfPage: 24 },
+      { code: '52', name: 'GUNKAN TOBIKO', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con alghe all'esterno e uova di pesce", price: 4.00, pdfPage: 24 },
+      { code: '53', name: 'GUNKAN EBI', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con alghe all'esterno e gamberi cotti con salsa maionese", price: 4.00, pdfPage: 24 },
+      { code: '54', name: 'GUNKAN SPECIAL SAKE', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con salmone all'esterno e salmone piccante", price: 6.00, pdfPage: 25 },
+      { code: '55', name: 'GUNKAN SCOTTATO SALMONE', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con salmone all'esterno e salmone piccante scottato", price: 6.00, pdfPage: 25 },
+      { code: '56', name: 'GUNKAN SPECIAL EBI', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con zucchine all'esterno e gamberi cotti con salsa maionese", price: 4.00, pdfPage: 26 },
+      { code: '57', name: 'GUNKAN SPECIAL MAGURO', cat: 'gunkan', pieces: '2pz', desc: "Polpette di riso avvolto con zucchine all'esterno e tonno piccante", price: 6.00, pdfPage: 26 },
+      { code: '58', name: 'GUNKAN SNOWBALL', cat: 'gunkan', pieces: '2pz', desc: 'Polpette di riso con philadelphia', price: 3.00, pdfPage: 26 },
+
+      // Temaki (cat: 'temaki')
+      { code: '60', name: 'TEMAKI SAKE AVOCADO', cat: 'temaki', pieces: '1pz', desc: "Cono di riso avvolto con alghe all'esterno ripieno con salmone e avocado", price: 5.00, pdfPage: 27 },
+      { code: '61', name: 'TEMAKI SPICY SALMON', cat: 'temaki', pieces: '1pz', desc: "Cono di riso avvolto con alghe all'esterno ripieno con salmone, cetriolo e salsa piccante", price: 5.00, pdfPage: 27 },
+      { code: '62', name: 'TEMAKI SPICY TONNO', cat: 'temaki', pieces: '1pz', desc: "Cono di riso avvolto con alghe all'esterno ripieno con tonno, cetriolo e salsa piccante", price: 5.00, pdfPage: 27 },
+      { code: '63', name: 'TEMAKI EBITEN', cat: 'temaki', pieces: '1pz', desc: "Cono di riso avvolto con alghe all'esterno ripieno con gambero fritto, lattuga e salsa teriyaki", price: 5.00, pdfPage: 27 },
+      { code: '64', name: 'TEMAKI CALIFORNIA', cat: 'temaki', pieces: '1pz', desc: "Cono di riso avvolto con alghe all'esterno ripieno con surimi, cetriolo e maionese", price: 5.00, pdfPage: 28 },
+      { code: '65', name: 'TEMAKI MIURA', cat: 'temaki', pieces: '1pz', desc: "Cono di riso avvolto con alghe all'esterno ripieno con salmone saltato e salsa teriyaki", price: 5.00, pdfPage: 28 },
+      { code: '66', name: 'TEMAKI VEGAN', cat: 'temaki', pieces: '1pz', desc: "Cono di riso avvolto con alghe all'esterno ripieno con avocado, cetriolo e lattuga", price: 5.00, pdfPage: 28 },
+      { code: '67', name: 'TEMAKI SPECIAL SALMON', cat: 'temaki', pieces: '1pz', desc: 'Cono di riso avvolto con foglio di soia ripieno con tartare di salmone, insalata e mandorle', price: 6.00, pdfPage: 29 },
+      { code: '68', name: 'TEMAKI SPECIAL EBI', cat: 'temaki', pieces: '1pz', desc: 'Cono di riso avvolto con foglio di soia ripieno con gamberi cotti e avocado', price: 6.00, pdfPage: 29 },
+
+      // Hosomaki (cat: 'hosomaki')
+      { code: '70', name: 'HOSOMAKI SAKE', cat: 'hosomaki', pieces: '', desc: 'Hosomaki con salmone', price: 4.00, pdfPage: 30 },
+      { code: '71', name: 'HOSOMAKI MAGURO', cat: 'hosomaki', pieces: '', desc: 'Hosomaki con tonno', price: 5.00, pdfPage: 30 },
+      { code: '72', name: 'HOSOMAKI EBI', cat: 'hosomaki', pieces: '', desc: 'Hosomaki con gambero cotto', price: 5.00, pdfPage: 30 },
+      { code: '73', name: 'HOSOMAKI AVOCADO', cat: 'hosomaki', pieces: '', desc: 'Hosomaki con avocado', price: 4.00, pdfPage: 30 },
+      { code: '74', name: 'HOSOMAKI KAPPA', cat: 'hosomaki', pieces: '', desc: 'Hosomaki con cetriolo', price: 4.00, pdfPage: 31 },
+      { code: '75', name: 'HOSOMAKI SURIMI', cat: 'hosomaki', pieces: '', desc: 'Hosomaki con surimi', price: 4.00, pdfPage: 31 },
+      { code: '76', name: 'HOSOMAKI FRITTO SPICY SALMON', cat: 'hosomaki', pieces: '', desc: 'Hosomaki fritto con salmone guarnito con tartare di salmone piccante e kataifi', price: 8.00, pdfPage: 31 },
+      { code: '77', name: 'HOSOMAKI FRITTO FRAGOLA', cat: 'hosomaki', pieces: '', desc: 'Hosomaki fritto con salmone guarnito con philadelphia e fragola', price: 7.00, pdfPage: 32 },
+      { code: '78', name: 'HOSOMAKI FRITTO PHILADELPHIA', cat: 'hosomaki', pieces: '', desc: 'Hosomaki fritto con salmone guarnito con philadelphia e sesamo', price: 6.00, pdfPage: 32 },
+
+      // Futomaki (cat: 'futomaki')
+      { code: '80', name: 'FUTO CALIFORNIA', cat: 'futomaki', pieces: '5pz', desc: 'Futomaki con surimi, avocado, cetriolo e maionese', price: 6.00, pdfPage: 33 },
+      { code: '81', name: 'FUTO VEGETARIANO', cat: 'futomaki', pieces: '5pz', desc: 'Futomaki con verdure miste', price: 5.00, pdfPage: 33 },
+      { code: '82', name: 'FUTO IMPERIAL', cat: 'futomaki', pieces: '5pz', desc: 'Futomaki con mango, salmone e gambero cotto e salsa teriyaki', price: 7.00, pdfPage: 33 },
+      { code: '83', name: 'FUTO FRITTO', cat: 'futomaki', pieces: '5pz', desc: 'Futomaki fritto con gambero alla tempura, philadelphia e kataifi', price: 7.00, pdfPage: 33 },
+
+      // Uramaki (cat: 'uramaki')
+      { code: '90', name: 'SAKE AVOCADO', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone e avocado', price: 8.00, pdfPage: 34 },
+      { code: '91', name: 'MAGURO AVOCADO', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con tonno e avocado', price: 9.00, pdfPage: 34 },
+      { code: '92', name: 'CALIFORNIA', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con surimi, cetriolo, insalata e maionese, guarnito con tobiko', price: 8.00, pdfPage: 34 },
+      { code: '93', name: 'EBITEN', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con gamberone in tempura, maionese e kataifi', price: 9.00, pdfPage: 35 },
+      { code: '94', name: 'VEGETARIANO', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con avocado, cetriolo e insalata', price: 7.00, pdfPage: 35 },
+      { code: '95', name: 'RAINBOW ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con surimi, cetriolo, insalata e maionese, guarnito pesce misto', price: 12.00, pdfPage: 36 },
+      { code: '96', name: 'SAKE PHILADELPHIA', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone e philadelphia', price: 8.00, pdfPage: 36 },
+      { code: '97', name: 'MIURA', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone saltato, insalata, philadelphia e salsa teriyaki', price: 8.00, pdfPage: 37 },
+      { code: '98', name: 'SPICY SALMON', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con tartare di salmone e cetriolo', price: 8.00, pdfPage: 37 },
+      { code: '99', name: 'SPICY TUNA', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con tartare di tonno e cetriolo', price: 9.00, pdfPage: 37 },
+      { code: '100', name: 'SPECIAL MANGO', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone fritto e philadelphia guarnito con mango', price: 12.00, pdfPage: 37 },
+      { code: '101', name: 'DRAGON ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con gamberone in tempura e philadelphia, guarnito con avocado', price: 12.00, pdfPage: 38 },
+      { code: '102', name: 'FLAMBE ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con tartare di salmone e avocado guarnito con salmone e pistacchio scottato', price: 12.00, pdfPage: 38 },
+      { code: '103', name: 'TATAKI ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con gamberone in tempura e philadelphia guarnito con salmone scottato e sesamo', price: 12.00, pdfPage: 38 },
+      { code: '104', name: 'TIGER ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con gamberone in tempura e philadelphia guarnito con salmone e teriyaki', price: 12.00, pdfPage: 38 },
+      { code: '105', name: 'JINO ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con avocado, philadelphia guarnito con tartare di salmone e mandorle', price: 10.00, pdfPage: 39 },
+      { code: '106', name: 'FEVER ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone e philadelphia guarnito con avocado', price: 12.00, pdfPage: 39 },
+      { code: '107', name: 'PISTACCHIO ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con gamberone in tempura guarnito con pistacchio e maionese', price: 12.00, pdfPage: 39 },
+      { code: '108', name: 'CROCCANTE ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki fritto con surimi, avocado e maionese', price: 12.00, pdfPage: 39 },
+      { code: '109', name: 'CHICKEN ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con pollo fritto e maionese guarnito con cipolla fritta e salsa teriyaki', price: 12.00, pdfPage: 40 },
+      { code: '110', name: 'SWEET ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con patata dolce fritta guarnito con salmone, pistacchio e salsa dello chef', price: 12.00, pdfPage: 40 },
+      { code: '111', name: 'KUNSEI ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone fritto e philadelphia guarnito con salmone affumicato e salsa teriyaki', price: 14.00, pdfPage: 40 },
+      { code: '112', name: 'PAPAYA ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con papaya, salmone e philadelphia', price: 12.00, pdfPage: 40 },
+      { code: '113', name: 'BANANA ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con banana guarnito con philadelphia, sesamo e salsa frutta', price: 10.00, pdfPage: 41 },
+      { code: '114', name: 'SALMON OUT', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone saltato guarnito con salmone scottato, tobiko e salsa flambe', price: 13.00, pdfPage: 41 },
+      { code: '115', name: 'EBI OUT', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki con salmone saltato guarnito con tartare di gamberi e salsa teriyaki', price: 13.00, pdfPage: 41 },
+      { code: '116', name: 'FRESH ROLL', cat: 'uramaki', pieces: '8pz', desc: 'Uramaki senza alga con salmone e philadelphia guarnito con salmone e salsa teriyaki', price: 15.00, pdfPage: 42 },
+      { code: '117', name: 'GINZA', cat: 'uramaki', pieces: '8pz', desc: 'Riso pressato con tartare di salmone e avocado', price: 9.00, pdfPage: 42 },
+
+      // Uramaki Riso Venere (cat: 'venere')
+      { code: '130', name: 'TIGER KUO', cat: 'venere', pieces: '8pz', desc: 'Uramaki con riso venere, gamberone in tempura, philadelphia guarnito con tartare di gamberi e salsa piccante', price: 14.00, pdfPage: 43 },
+      { code: '131', name: 'SAKE KUO', cat: 'venere', pieces: '8pz', desc: 'Uramaki con riso venere, salmone, philadelphia guarnito con cipolla fritta', price: 12.00, pdfPage: 43 },
+      { code: '132', name: 'MAGURO KUO', cat: 'venere', pieces: '8pz', desc: 'Uramaki con riso venere, tonno, philadelphia guarnito con tartare salmone', price: 13.00, pdfPage: 43 },
+      { code: '133', name: 'VEGAN KUO', cat: 'venere', pieces: '8pz', desc: 'Uramaki con riso venere, avocado, cetriolo, insalata e guarnito con avocado', price: 10.00, pdfPage: 44 },
+      { code: '134', name: 'TATAKI KUO', cat: 'venere', pieces: '8pz', desc: 'Uramaki con riso venere, gamberone in tempura, philadelphia guarnito con salmone scottato e salsa teriyaki', price: 14.00, pdfPage: 44 },
+      { code: '135', name: 'AVOCADO KUO', cat: 'venere', pieces: '8pz', desc: 'Uramaki con riso venere, salmone e avocado', price: 12.00, pdfPage: 44 },
+
+      // Zuppa (cat: 'zuppa')
+      { code: '140', name: 'ZUPPA MISO', cat: 'zuppa', pieces: '', desc: 'Zuppa con alghe e tofu', price: 5.00, pdfPage: 45 },
+      { code: '141', name: 'ZUPPA AGROPICCANTE', cat: 'zuppa', pieces: '', desc: 'Zuppa con uova, tofu e verdure miste', price: 5.00, pdfPage: 45 },
+
+      // Spaghetti (cat: 'spaghetti')
+      { code: '145', name: 'YASAI UDON', cat: 'spaghetti', pieces: '', desc: 'Spaghetti udon con verdure miste', price: 7.00, pdfPage: 46 },
+      { code: '146', name: 'YAKI UDON', cat: 'spaghetti', pieces: '', desc: 'Spaghetti udon con gamberi, uova e verdure', price: 8.00, pdfPage: 46 },
+      { code: '147', name: 'SPAGHETTI DI RISO CON GAMBERI', cat: 'spaghetti', pieces: '', desc: 'Spaghetti di riso con gamberi, uova e verdure miste', price: 6.00, pdfPage: 46 },
+      { code: '148', name: 'SPAGHETTI DI RISO CON VERDURE', cat: 'spaghetti', pieces: '', desc: 'Spaghetti di riso con verdure miste e uova', price: 5.00, pdfPage: 46 },
+      { code: '149', name: 'SPAGHETTI DI SOIA CON FRUTTI DI MARE', cat: 'spaghetti', pieces: '', desc: 'Spaghetti di soia con frutti di mare', price: 6.00, pdfPage: 47 },
+      { code: '150', name: 'SPAGHETTI DI SOIA CON VERDURE', cat: 'spaghetti', pieces: '', desc: 'Spaghetti di soia con verdure miste', price: 5.00, pdfPage: 47 },
+      { code: '151', name: 'PAD THAI', cat: 'spaghetti', pieces: '', desc: 'Tagliatelle di riso con verdure miste', price: 7.00, pdfPage: 47 },
+      { code: '152', name: 'YASAI SOBA', cat: 'spaghetti', pieces: '', desc: 'Spaghetti di grano saraceno al tè verde con verdure miste', price: 8.00, pdfPage: 47 },
+
+      // Ramen (cat: 'ramen')
+      { code: '153', name: 'RAMEN IN BRODO CON VERDURE', cat: 'ramen', pieces: '', desc: 'Ramen con verdure miste e uova', price: 7.00, pdfPage: 48 },
+      { code: '154', name: 'RAMEN IN BRODO CON GAMBERI', cat: 'ramen', pieces: '', desc: 'Ramen con gamberi, verdure miste e uova', price: 8.00, pdfPage: 48 },
+
+      // Riso (cat: 'riso')
+      { code: '160', name: 'GOHAN', cat: 'riso', pieces: '', desc: 'Riso bianco', price: 2.00, pdfPage: 49 },
+      { code: '161', name: 'RISO CANTONESE', cat: 'riso', pieces: '', desc: 'Riso saltato con piselli, prosciutto cotto e uova', price: 5.00, pdfPage: 49 },
+      { code: '162', name: 'YAKI GOHAN', cat: 'riso', pieces: '', desc: 'Riso saltato con gamberetti', price: 7.00, pdfPage: 49 },
+      { code: '163', name: 'MASAMI GOHAN', cat: 'riso', pieces: '', desc: 'Riso saltato con ananas, gamberetti e salsa agropiccante', price: 7.00, pdfPage: 49 },
+
+      // Secondi (cat: 'secondi')
+      { code: '170', name: 'POLLO AL LIMONE', cat: 'secondi', pieces: '', desc: 'Petto di pollo saltato con limone', price: 7.00, pdfPage: 50 },
+      { code: '171', name: 'POLLO AL CURRY', cat: 'secondi', pieces: '', desc: 'Petto di pollo saltato con salsa al curry', price: 7.00, pdfPage: 50 },
+      { code: '172', name: 'POLLO THAI', cat: 'secondi', pieces: '', desc: 'Petto di pollo saltato con peperoni, cipolla e salsa piccante', price: 9.00, pdfPage: 50 },
+      { code: '173', name: 'POLLO AGRODOLCE', cat: 'secondi', pieces: '', desc: 'Petto di pollo saltato con ananas, verdure e salsa agrodolce', price: 8.00, pdfPage: 50 },
+      { code: '174', name: 'MANZO CON FUNGHI E BAMBU', cat: 'secondi', pieces: '', desc: 'Manzo saltato con funghi e bambù', price: 7.00, pdfPage: 51 },
+      { code: '175', name: 'MANZO THAI', cat: 'secondi', pieces: '', desc: 'Manzo saltato con peperoni, cipolla e salsa piccante', price: 9.00, pdfPage: 51 },
+      { code: '176', name: 'GAMBERI SALE E PEPE', cat: 'secondi', pieces: '', desc: 'Gamberetti saltati con sale e pepe', price: 9.00, pdfPage: 51 },
+      { code: '177', name: 'GAMBERI LEMON', cat: 'secondi', pieces: '', desc: 'Gamberetti saltati con limone', price: 9.00, pdfPage: 51 },
+      { code: '178', name: 'GAMBERI THAI', cat: 'secondi', pieces: '', desc: 'Gamberetti saltati con peperoni, cipolla e salsa piccante', price: 10.00, pdfPage: 52 },
+      { code: '179', name: 'GAMBERI AL CURRY', cat: 'secondi', pieces: '', desc: 'Gamberetti saltati con cipolla e salsa al curry', price: 9.00, pdfPage: 52 },
+      { code: '180', name: 'GAMBERI AGRODOLCE', cat: 'secondi', pieces: '', desc: 'Gamberetti saltati con verdure e salsa agropiccante', price: 9.00, pdfPage: 52 },
+      { code: '181', name: 'VERDURE MISTE', cat: 'secondi', pieces: '', desc: 'Verdure miste di stagione', price: 6.00, pdfPage: 52 },
+
+      // Teppanyaki (cat: 'teppanyaki')
+      { code: '191', name: 'EBI YAKI', cat: 'teppanyaki', pieces: '', desc: 'Gamberoni alla griglia', price: 9.00, pdfPage: 53 },
+      { code: '192', name: 'TAI YAKI', cat: 'teppanyaki', pieces: '', desc: 'Branzino alla griglia', price: 7.00, pdfPage: 53 },
+      { code: '193', name: 'SAKE TEPPAN', cat: 'teppanyaki', pieces: '', desc: 'Salmone alla griglia', price: 7.00, pdfPage: 53 },
+      { code: '194', name: 'YAKI EBI', cat: 'teppanyaki', pieces: '', desc: 'Spiedini di gamberi', price: 7.00, pdfPage: 53 },
+      { code: '195', name: 'YAKI TORI', cat: 'teppanyaki', pieces: '', desc: 'Spiedini di pollo', price: 7.00, pdfPage: 54 },
+      { code: '196', name: 'IKA YAKI', cat: 'teppanyaki', pieces: '', desc: 'Seppia alla griglia', price: 7.00, pdfPage: 54 },
+      { code: '197', name: 'TATAKI', cat: 'teppanyaki', pieces: '', desc: 'Salmone scottato in crosta di sesamo', price: 9.00, pdfPage: 54 },
+
+      // Tempura (cat: 'tempura')
+      { code: '201', name: 'TEMPURA EBI', cat: 'tempura', pieces: '', desc: 'Gamberoni fritti', price: 10.00, pdfPage: 55 },
+      { code: '202', name: 'TEMPURA YASAI', cat: 'tempura', pieces: '', desc: 'Zucchine, patate dolce, carota fritta', price: 7.00, pdfPage: 55 },
+      { code: '203', name: 'TEMPURA MISTO', cat: 'tempura', pieces: '', desc: 'Gamberoni, zucchine, patate dolce, carota fritta', price: 9.00, pdfPage: 55 },
+      { code: '204', name: 'POLLO FRITTO', cat: 'tempura', pieces: '', desc: 'Pollo fritto', price: 8.00, pdfPage: 56 },
+      { code: '205', name: 'IKA KARAGA', cat: 'tempura', pieces: '', desc: 'Anelli di totano fritto', price: 8.00, pdfPage: 56 },
+
+      // Piatti A Pagamento (cat: 'pagamento')
+      { code: '888', name: 'FIOR DI ZUCCA', cat: 'pagamento', pieces: '2pz', desc: 'Fior di zucca ripieno di tartare di gamberi', price: 6.00, pdfPage: 57 },
+      { code: '889', name: 'SCAMPI ROLL', cat: 'pagamento', pieces: '', desc: 'Uramaki con gamberone e cetriolo guarnito con scampi e salsa dello chef', price: 16.00, pdfPage: 57 },
+      { code: '890', name: 'SNAKE ROLL', cat: 'pagamento', pieces: '', desc: 'Uramaki con anguilla e avocado guarnito con anguilla e salsa teriyaki', price: 20.00, pdfPage: 57 },
+
+      // Dolce (cat: 'dolce')
+      { code: '301', name: 'RONDO VANIGLIA E FRAGOLA', cat: 'dolce', pieces: '', desc: 'Tortino al gelato alla vaniglia e fragola, decorato con lampone mora e cioccolato', price: 5.00, pdfPage: 58 },
+      { code: '302', name: 'CROCCANTE ALLE MANDORLE', cat: 'dolce', pieces: '', desc: 'Dessert semifreddo con crema alla nocciola, cuore morbido al cioccolato, decorato con mandorle caramellizzate', price: 5.00, pdfPage: 58 },
+      { code: '303', name: 'CROCCANTE AL PISTACCHIO', cat: 'dolce', pieces: '', desc: 'Dessert semifreddo con crema al pistacchio, cuore al pistacchio, decorato con granella di mandorle caramellate', price: 5.00, pdfPage: 58 },
+      { code: '304', name: 'SOUFFLE BLACK', cat: 'dolce', pieces: '', desc: 'Soufflé con cuore di cioccolato fondente liquido', price: 5.00, pdfPage: 58 },
+      { code: '305', name: 'SOUFFLE AL PISTACCHIO', cat: 'dolce', pieces: '', desc: 'Soufflé al cioccolato con cuore al pistacchio liquido', price: 5.00, pdfPage: 58 },
+      { code: '306', name: 'COPPA TIRAMISU', cat: 'dolce', pieces: '', desc: 'Crema al mascarpone e pan di spagna inzuppato al caffè', price: 5.00, pdfPage: 58 },
+      { code: '307', name: 'TARTUFO CLASSICO', cat: 'dolce', pieces: '', desc: 'Gelato semifreddo allo zabaione e gelato al cioccolato, decorato con granella di nocciole e cacao', price: 5.00, pdfPage: 58 },
+      { code: '308', name: 'CREMA CATALANA', cat: 'dolce', pieces: '', desc: 'Crema catalana con zucchero caramellato', price: 5.00, pdfPage: 59 },
+      { code: '309', name: 'COCCO RIPIENO', cat: 'dolce', pieces: '', desc: 'Gelato al cocco', price: 5.00, pdfPage: 59 },
+      { code: '310', name: 'TWITTY', cat: 'dolce', pieces: '', desc: 'Gelato al fiordilatte', price: 4.50, pdfPage: 59 },
+      { code: '311', name: 'CIP CIOK', cat: 'dolce', pieces: '', desc: 'Gelato al cioccolato', price: 4.50, pdfPage: 59 },
+      { code: '312', name: 'ICE MOCHI', cat: 'dolce', pieces: '2pz', desc: 'Bignè con farina di riso ripieno gelato: vaniglia, cocco, mango, tè verde', price: 5.00, pdfPage: 59 },
+      { code: '313', name: 'ANANAS FRESCO', cat: 'dolce', pieces: '', desc: 'Ananas fresco', price: 4.00, pdfPage: 59 },
+      { code: '314', name: 'SORBETTO DI LIMONE', cat: 'dolce', pieces: '', desc: 'Sorbetto di limone', price: 4.50, pdfPage: 59 },
+      { code: '315', name: 'SORBETTO DI LIMONE CON VODKA', cat: 'dolce', pieces: '', desc: 'Sorbetto di limone con vodka', price: 6.00, pdfPage: 59 },
+
+      // Bevande (cat: 'bevande', noPhoto: true)
+      { code: 'B01', name: 'ACQUA', cat: 'bevande', pieces: '', desc: 'Naturale o frizzante', price: 3.00, noPhoto: true },
+      { code: 'B02', name: 'BIBITE LATTINA', cat: 'bevande', pieces: '', desc: 'Coca Cola, Coca Zero, Fanta, Sprite', price: 3.00, noPhoto: true },
+      { code: 'B03', name: 'ESTATHE LATTINA', cat: 'bevande', pieces: '', desc: 'Limone o pesca', price: 3.00, noPhoto: true },
+      { code: 'B04', name: 'TE VERDE GIAPPONESE IN TEIERA', cat: 'bevande', pieces: '', desc: 'Teiera di tè verde giapponese', price: 5.00, noPhoto: true },
+      { code: 'B05', name: 'TE VERDE GELSOMINO IN TEIERA', cat: 'bevande', pieces: '', desc: 'Teiera di tè verde al gelsomino', price: 4.00, noPhoto: true },
+      { code: 'B06', name: 'CAFFE', cat: 'bevande', pieces: '', desc: 'Espresso', price: 1.20, noPhoto: true },
+      { code: 'B07', name: 'CAFFE DECAFFEINATO', cat: 'bevande', pieces: '', desc: 'Espresso decaffeinato', price: 1.50, noPhoto: true },
+      { code: 'B08', name: 'CAFFE CORRETTO', cat: 'bevande', pieces: '', desc: 'Caffè corretto', price: 1.50, noPhoto: true },
+      { code: 'B09', name: 'CAFFE GINSENG', cat: 'bevande', pieces: '', desc: 'Caffè al ginseng', price: 1.50, noPhoto: true },
+      { code: 'B10', name: 'CAFFE ORZO', cat: 'bevande', pieces: '', desc: "Caffè d'orzo", price: 1.50, noPhoto: true },
+      { code: 'B11', name: 'ASAHI 50CL', cat: 'bevande', pieces: '', desc: 'Birra giapponese 50cl', price: 5.00, noPhoto: true },
+      { code: 'B12', name: 'ASAHI 33CL', cat: 'bevande', pieces: '', desc: 'Birra giapponese 33cl', price: 4.00, noPhoto: true },
+      { code: 'B13', name: 'KIRIN 50CL', cat: 'bevande', pieces: '', desc: 'Birra giapponese 50cl', price: 5.00, noPhoto: true },
+      { code: 'B14', name: 'SAPPORO 50CL', cat: 'bevande', pieces: '', desc: 'Birra giapponese 50cl', price: 5.00, noPhoto: true },
+      { code: 'B15', name: 'TSINGTAO 66CL', cat: 'bevande', pieces: '', desc: 'Birra cinese 66cl', price: 5.00, noPhoto: true },
+      { code: 'B16', name: 'GRAPPA', cat: 'bevande', pieces: '', desc: 'Grappa morbida, grappa barricata', price: 4.00, noPhoto: true },
+      { code: 'B17', name: 'AMARI', cat: 'bevande', pieces: '', desc: 'Montenegro, Amaro del Capo, Jägermeister, Branca Menta, Fernet Branca, Braulio, Anima Nera, Limoncello', price: 3.00, noPhoto: true },
+      { code: 'B18', name: 'WHISKY', cat: 'bevande', pieces: '', desc: "Jack Daniel's", price: 5.00, noPhoto: true },
+      { code: 'B19', name: 'LIQUORE CINESE', cat: 'bevande', pieces: '', desc: 'Grappa rosa, bambù, cereali, ginseng', price: 4.00, noPhoto: true },
+      { code: 'B20', name: 'GRAPPA PRUGNA', cat: 'bevande', pieces: '', desc: 'Grappa alla prugna', price: 4.00, noPhoto: true },
+      { code: 'B21', name: 'SAKE PICCOLO', cat: 'bevande', pieces: '', desc: 'Sakè caldo o freddo piccolo', price: 3.50, noPhoto: true },
+      { code: 'B22', name: 'SAKE GRANDE', cat: 'bevande', pieces: '', desc: 'Sakè caldo o freddo grande', price: 7.00, noPhoto: true },
+
+      // Lista Vini (cat: 'vini', noPhoto: true)
+      { code: 'V01', name: 'PROSECCO AL CALICE', cat: 'vini', pieces: '', desc: 'De Faveri Extra Dry DOCG', price: 4.00, noPhoto: true },
+      { code: 'V02', name: 'LUGANA AL CALICE', cat: 'vini', pieces: '', desc: 'Cò de Fer', price: 4.00, noPhoto: true },
+      { code: 'V03', name: 'ROSSO AL CALICE', cat: 'vini', pieces: '', desc: 'Morellino di Scansano DOCG', price: 5.00, noPhoto: true },
+      { code: 'V04', name: 'VINO BIANCO 25CL', cat: 'vini', pieces: '', desc: 'Fermo e frizzante', price: 3.50, noPhoto: true },
+      { code: 'V05', name: 'VINO BIANCO 50CL', cat: 'vini', pieces: '', desc: 'Fermo e frizzante', price: 6.00, noPhoto: true },
+      { code: 'V06', name: 'VINO BIANCO 100CL', cat: 'vini', pieces: '', desc: 'Fermo e frizzante', price: 10.00, noPhoto: true },
+      { code: 'V07', name: 'PINOT GRIGIO FRIULI AQUILEIA DOC', cat: 'vini', pieces: '', desc: 'Tenuta Cà Bolani (Veneto)', price: 18.00, noPhoto: true },
+      { code: 'V08', name: 'SAUVIGNON FRIULI AQUILEIA DOC', cat: 'vini', pieces: '', desc: 'Tenuta Cà Bolani (Veneto)', price: 18.00, noPhoto: true },
+      { code: 'V09', name: 'BIANCO DI CUSTOZA DOC', cat: 'vini', pieces: '', desc: 'Veneto', price: 15.00, noPhoto: true },
+      { code: 'V10', name: 'PINOT BIANCO TRENTINO DOC', cat: 'vini', pieces: '', desc: 'Rotaliana (Trento)', price: 18.00, noPhoto: true },
+      { code: 'V11', name: 'MULLER THURGAU TRENTINO DOC', cat: 'vini', pieces: '', desc: 'Rotaliana (Trento)', price: 17.00, noPhoto: true },
+      { code: 'V12', name: 'GEWURZTRAMINER TRENTINO DOC', cat: 'vini', pieces: '', desc: 'Rotaliana (Trento)', price: 20.00, noPhoto: true },
+      { code: 'V13', name: 'LUGANA DOC', cat: 'vini', pieces: '', desc: 'Cò de Fer (Lombardia)', price: 16.00, noPhoto: true },
+      { code: 'V14', name: 'CURTEFRANCA BIANCO DOC', cat: 'vini', pieces: '', desc: 'Ferghettina (Lombardia)', price: 17.00, noPhoto: true },
+      { code: 'V15', name: 'LUGANA DOC I FRATI', cat: 'vini', pieces: '', desc: 'Cà dei Frati (Lombardia)', price: 20.00, noPhoto: true },
+      { code: 'V16', name: 'LUGANA DOC BROLETTINO', cat: 'vini', pieces: '', desc: 'Cà dei Frati (Lombardia)', price: 23.00, noPhoto: true },
+      { code: 'V17', name: 'KADOS SICILIA IGT', cat: 'vini', pieces: '', desc: 'Duca di Salaparuta (Sicilia)', price: 20.00, noPhoto: true },
+      { code: 'V18', name: 'ROSA DEI FRATI DOC', cat: 'vini', pieces: '', desc: 'Cà dei Frati (Rosè Fermo)', price: 20.00, noPhoto: true },
+      { code: 'V19', name: 'CHARDONNAY FRIZZANTE IGT VENEZIE', cat: 'vini', pieces: '', desc: 'Tenuta Cà Bolani (Bollicine)', price: 17.00, noPhoto: true },
+      { code: 'V20', name: 'VALDOBBIADENE EXTRA DRY DOCG', cat: 'vini', pieces: '', desc: 'De Faveri (Bollicine)', price: 18.00, noPhoto: true },
+      { code: 'V21', name: 'FRANCIACORTA DOCG BRUT', cat: 'vini', pieces: '', desc: 'La Montina (Bollicine)', price: 35.00, noPhoto: true },
+      { code: 'V22', name: 'FRANCIACORTA DOCG SATEN', cat: 'vini', pieces: '', desc: 'Majolini (Bollicine)', price: 38.00, noPhoto: true },
+      { code: 'V23', name: 'FRANCIACORTA DOCG ALMA GRAN CUVEE', cat: 'vini', pieces: '', desc: 'Bellavista (Bollicine)', price: 55.00, noPhoto: true },
+      { code: 'V24', name: 'CHAMPAGNE SAINT PETERSBOURG', cat: 'vini', pieces: '', desc: 'Veuve Clicquot Ponsardin (Bollicine)', price: 80.00, noPhoto: true },
+      { code: 'V25', name: 'AMICONE ROSSO VENETO IGT', cat: 'vini', pieces: '', desc: 'Cantine di Ora (Vini Rossi)', price: 15.00, noPhoto: true },
+      { code: 'V26', name: 'MORELLINO DI SCANSANO DOCG', cat: 'vini', pieces: '', desc: 'Az. Agr. Terenzi (Vini Rossi)', price: 16.00, noPhoto: true },
+      { code: 'V27', name: 'ROSSO DI MONTALCINO DOC', cat: 'vini', pieces: '', desc: "Col d'Orcia (Vini Rossi)", price: 25.00, noPhoto: true }
+    ];
+
+    // ==================== STATO GLOBALE & CHIAVI STORAGE ====================
+    const STORAGE_KEYS = {
+      ORDER: 'masami_order_v12',
+      CHECKED: 'masami_checked_v12',
+      THEME: 'masami_theme_v12',
+      CUSTOM_ITEMS: 'masami_custom_items_v12',
+      LOCKED_PHOTOS: 'masami_locked_photos_v12',
+      LOCKED_ITEMS: 'masami_locked_items_v12'
+    };
+
+    const IDB_CONFIG = {
+      DB_NAME: 'MasamiMenuDB_v12',
+      VERSION: 1,
+      PHOTO_STORE: 'photos',
+      PDF_STORE: 'pdf_cache'
+    };
+
+    const state = {
+      categories: [...CATEGORIES],
+      menuItems: JSON.parse(JSON.stringify(VERIFIED_MENU_ITEMS)),
+      activeCategory: CATEGORIES[0].id,
+      navLockCatId: null,
+      navLockTimer: null,
+      searchQuery: '',
+      onlySelected: false,
+      sortMode: 'code',
+      order: {},
+      checked: {},
+      photos: {},
+      lockedPhotos: {},
+      lockedItems: {},
+      detailCode: null,
+      detailMode: 'edit',
+      pdfDoc: null,
+      pdfBytes: null,
+      pdfToolMode: 'photo', // 'photo' | 'text'
+      pdfPageNum: 1,
+      currentRenderScale: 1.8,
+      selRect: null,
+      isDraggingSel: false,
+      selStart: null,
+      lastRecognizedData: null,
+      clearConfirmPending: false
+    };
+
+    // ==================== UTILITY BASE ====================
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function formatPrice(val) {
+      const n = Number(val) || 0;
+      return '€ ' + n.toFixed(2).replace('.', ',');
+    }
+
+    function getCategoryLabel(catId) {
+      const found = state.categories.find(c => c.id === catId);
+      return found ? found.label : catId;
+    }
+
+    function parseDishCodeParts(code) {
+      const clean = String(code || '').trim().toUpperCase();
+      const m = clean.match(/^([A-Z]*)(\d+)([A-Z]*)$/);
+      if (!m) {
+        return { group: 9, num: Number.MAX_SAFE_INTEGER, suffix: clean };
+      }
+      const prefix = m[1] || '';
+      const num = parseInt(m[2], 10);
+      const suffix = m[3] || '';
+
+      if (prefix === 'B') return { group: 2, num, suffix };
+      if (prefix === 'V') return { group: 3, num, suffix };
+      if (num >= 900 && num <= 999) return { group: 0, num, suffix };
+      return { group: 1, num, suffix };
+    }
+
+    function compareDishCodes(codeA, codeB) {
+      const a = parseDishCodeParts(codeA);
+      const b = parseDishCodeParts(codeB);
+      if (a.group !== b.group) return a.group - b.group;
+      if (a.num !== b.num) return a.num - b.num;
+      return a.suffix.localeCompare(b.suffix);
+    }
+
+    function getItemByCode(code) {
+      return state.menuItems.find(it => it.code === code) || null;
+    }
+
+    function buildDictationPhrase(code, qty) {
+      const q = Number(qty) || 1;
+      const words = {
+        1: 'un',
+        2: 'due',
+        3: 'tre',
+        4: 'quattro',
+        5: 'cinque',
+        6: 'sei',
+        7: 'sette',
+        8: 'otto',
+        9: 'nove',
+        10: 'dieci'
+      };
+      const qtyWord = words[q] || `${q}x`;
+      return `${qtyWord} ${code}`;
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const box = document.getElementById('toastBox');
+      const label = document.getElementById('toastMessage');
+      if (!box || !label) return;
+      label.textContent = msg;
+      box.classList.remove('hidden');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        box.classList.add('hidden');
+      }, 2800);
+    }
+
+    // ==================== PERSISTENZA LOCALSTORAGE & INDEXEDDB ====================
+    function saveLocalState() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.ORDER, JSON.stringify(state.order));
+        localStorage.setItem(STORAGE_KEYS.CHECKED, JSON.stringify(state.checked));
+      } catch (_) {}
+    }
+
+    function saveCustomEditsToLocal() {
+      try {
+        const customMap = {};
+        state.menuItems.forEach(it => {
+          if (state.lockedItems[it.code]) {
+            customMap[it.code] = {
+              name: it.name,
+              pieces: it.pieces || '',
+              desc: it.desc || '',
+              price: Number(it.price) || 0
+            };
+          }
+        });
+        localStorage.setItem(STORAGE_KEYS.CUSTOM_ITEMS, JSON.stringify(customMap));
+        localStorage.setItem(STORAGE_KEYS.LOCKED_PHOTOS, JSON.stringify(state.lockedPhotos));
+        localStorage.setItem(STORAGE_KEYS.LOCKED_ITEMS, JSON.stringify(state.lockedItems));
+      } catch (_) {}
+    }
+
+    function loadLocalState() {
+      try {
+        const savedTheme = localStorage.getItem(STORAGE_KEYS.THEME);
+        if (savedTheme === 'light') {
+          document.documentElement.classList.remove('dark');
+        } else {
+          document.documentElement.classList.add('dark');
+        }
+
+        const rawOrder = localStorage.getItem(STORAGE_KEYS.ORDER);
+        if (rawOrder) state.order = JSON.parse(rawOrder) || {};
+
+        const rawChecked = localStorage.getItem(STORAGE_KEYS.CHECKED);
+        if (rawChecked) state.checked = JSON.parse(rawChecked) || {};
+
+        const rawLockedPhotos = localStorage.getItem(STORAGE_KEYS.LOCKED_PHOTOS);
+        if (rawLockedPhotos) state.lockedPhotos = JSON.parse(rawLockedPhotos) || {};
+
+        const rawLockedItems = localStorage.getItem(STORAGE_KEYS.LOCKED_ITEMS);
+        if (rawLockedItems) state.lockedItems = JSON.parse(rawLockedItems) || {};
+
+        const rawCustom = localStorage.getItem(STORAGE_KEYS.CUSTOM_ITEMS);
+        if (rawCustom) {
+          const customMap = JSON.parse(rawCustom) || {};
+          Object.keys(customMap).forEach(code => {
+            const target = getItemByCode(code);
+            if (target && customMap[code]) {
+              target.name = customMap[code].name;
+              target.pieces = customMap[code].pieces;
+              target.desc = customMap[code].desc;
+              target.price = Number(customMap[code].price) || 0;
+              state.lockedItems[code] = true;
+            }
+          });
+        }
+      } catch (_) {}
+
+      // Applica eventuale snapshot incorporato tramite "Salva HTML"
+      if (window.__EMBEDDED_SNAPSHOT__) {
+        const snap = window.__EMBEDDED_SNAPSHOT__;
+        if (snap.photos && typeof snap.photos === 'object') {
+          state.photos = { ...snap.photos, ...state.photos };
+        }
+        if (snap.lockedPhotos && typeof snap.lockedPhotos === 'object') {
+          state.lockedPhotos = { ...snap.lockedPhotos, ...state.lockedPhotos };
+        }
+        if (snap.lockedItems && typeof snap.lockedItems === 'object') {
+          state.lockedItems = { ...snap.lockedItems, ...state.lockedItems };
+        }
+        if (Array.isArray(snap.menuItems)) {
+          snap.menuItems.forEach(snapItem => {
+            const target = getItemByCode(snapItem.code);
+            if (target && !state.lockedItems[snapItem.code]) {
+              target.name = snapItem.name;
+              target.pieces = snapItem.pieces || '';
+              target.desc = snapItem.desc || '';
+              target.price = Number(snapItem.price) || 0;
+            }
+          });
+        }
+      }
+    }
+
+    function openMasamiIDB() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) return reject(new Error('IndexedDB non disponibile'));
+        const req = indexedDB.open(IDB_CONFIG.DB_NAME, IDB_CONFIG.VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          // Store SENZA keyPath (chiavi out-of-line) per massima compatibilità
+          if (!db.objectStoreNames.contains(IDB_CONFIG.PHOTO_STORE)) {
+            db.createObjectStore(IDB_CONFIG.PHOTO_STORE);
+          }
+          if (!db.objectStoreNames.contains(IDB_CONFIG.PDF_STORE)) {
+            db.createObjectStore(IDB_CONFIG.PDF_STORE);
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function savePhotoToIDB(code, dataUrl) {
+      try {
+        const db = await openMasamiIDB();
+        return await new Promise((resolve) => {
+          const tx = db.transaction(IDB_CONFIG.PHOTO_STORE, 'readwrite');
+          const store = tx.objectStore(IDB_CONFIG.PHOTO_STORE);
+          if (store.keyPath) {
+            store.put({ [store.keyPath]: code, dataUrl });
+          } else {
+            store.put(dataUrl, code);
+          }
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        });
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function loadPhotosFromIDB() {
+      try {
+        const db = await openMasamiIDB();
+        return await new Promise((resolve) => {
+          const tx = db.transaction(IDB_CONFIG.PHOTO_STORE, 'readonly');
+          const store = tx.objectStore(IDB_CONFIG.PHOTO_STORE);
+          const req = store.openCursor();
+          const loaded = {};
+          req.onsuccess = (e) => {
+            const cursor = e.target.result;
+            if (cursor) {
+              const val = cursor.value;
+              loaded[cursor.key] = typeof val === 'string' ? val : (val && val.dataUrl ? val.dataUrl : '');
+              cursor.continue();
+            } else {
+              resolve(loaded);
+            }
+          };
+          req.onerror = () => resolve({});
+        });
+      } catch (_) {
+        return {};
+      }
+    }
+
+    async function savePdfCacheToIDB(arrayBuffer) {
+      try {
+        const db = await openMasamiIDB();
+        return await new Promise((resolve) => {
+          const tx = db.transaction(IDB_CONFIG.PDF_STORE, 'readwrite');
+          const store = tx.objectStore(IDB_CONFIG.PDF_STORE);
+          if (store.keyPath) {
+            store.put({ [store.keyPath]: 'menu_pdf', bytes: arrayBuffer });
+          } else {
+            store.put(arrayBuffer, 'menu_pdf');
+          }
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => resolve(false);
+        });
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function loadPdfCacheFromIDB() {
+      try {
+        const db = await openMasamiIDB();
+        return await new Promise((resolve) => {
+          const tx = db.transaction(IDB_CONFIG.PDF_STORE, 'readonly');
+          const store = tx.objectStore(IDB_CONFIG.PDF_STORE);
+          const req = store.get('menu_pdf');
+          req.onsuccess = () => {
+            const res = req.result;
+            if (!res) return resolve(null);
+            if (res instanceof ArrayBuffer) return resolve(res);
+            if (res.bytes instanceof ArrayBuffer) return resolve(res.bytes);
+            resolve(null);
+          };
+          req.onerror = () => resolve(null);
+        });
+      } catch (_) {
+        return null;
+      }
+    }
+
+    // ==================== GESTIONE PDF IN MEMORIA (SENZA SOVRASCRIVERE TESTI) ====================
+    async function loadPdfDocumentFromBytes(arrayBuffer) {
+      if (!window.pdfjsLib) throw new Error('PDF.js non caricato');
+      const cloned = arrayBuffer.slice(0);
+      const loadingTask = pdfjsLib.getDocument({
+        data: new Uint8Array(cloned),
+        disableWorker: true
+      });
+      const doc = await loadingTask.promise;
+      state.pdfBytes = arrayBuffer.slice(0);
+      state.pdfDoc = doc;
+      updatePdfStatusUI();
+      return doc;
+    }
+
+    async function handlePdfFileSelected(file) {
+      if (!file) return;
+      try {
+        const buffer = await file.arrayBuffer();
+        await loadPdfDocumentFromBytes(buffer);
+        await savePdfCacheToIDB(buffer);
+        showToast(`PDF caricato (${state.pdfDoc.numPages} pagine). Testi verificati mantenuti intatti!`);
+        if (state.detailCode && !document.getElementById('detailPdfToolView').classList.contains('hidden')) {
+          await renderPdfToolPage(state.pdfPageNum);
+        }
+      } catch (err) {
+        console.error('Errore lettura PDF:', err);
+        showToast('Errore durante la lettura del file PDF');
+      }
+    }
+
+    function updatePdfStatusUI() {
+      const banner = document.getElementById('pdfStatusBanner');
+      const btnLabel = document.getElementById('loadPdfBtnLabel');
+      const subtitle = document.getElementById('menuSubtitleInfo');
+      const photoCount = Object.keys(state.photos).length;
+
+      if (state.pdfDoc) {
+        if (banner) banner.classList.add('hidden');
+        if (btnLabel) btnLabel.textContent = `PDF (${state.pdfDoc.numPages}p)`;
+      } else {
+        if (banner) banner.classList.remove('hidden');
+        if (btnLabel) btnLabel.textContent = 'Carica PDF';
+      }
+
+      if (subtitle) {
+        subtitle.textContent = photoCount > 0
+          ? `${state.menuItems.length} piatti • ${photoCount} foto salvate`
+          : `Catalogo verificato • ${state.menuItems.length} voci`;
+      }
+    }
+
+    // ==================== BARRA CATEGORIE CON FRECCE & CENTRATURA OMOGENEA ====================
+    function updateCategoryArrowsState() {
+      const bar = document.getElementById('catBar');
+      const leftBtn = document.getElementById('catScrollLeft');
+      const rightBtn = document.getElementById('catScrollRight');
+      if (!bar || !leftBtn || !rightBtn) return;
+
+      leftBtn.disabled = bar.scrollLeft <= 4;
+      rightBtn.disabled = bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 4;
+    }
+
+    function centerCategoryPill(pillEl, smooth = true) {
+      const bar = document.getElementById('catBar');
+      if (!bar || !pillEl) return;
+
+      const barRect = bar.getBoundingClientRect();
+      const pillRect = pillEl.getBoundingClientRect();
+      const delta = (pillRect.left - barRect.left) - (barRect.width / 2) + (pillRect.width / 2);
+
+      bar.scrollBy({
+        left: delta,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+      setTimeout(updateCategoryArrowsState, smooth ? 320 : 20);
+    }
+
+    function setActiveCategoryPill(catId, shouldCenter = true) {
+      state.activeCategory = catId;
+      const bar = document.getElementById('catBar');
+      if (!bar) return;
+
+      let activePill = null;
+      bar.querySelectorAll('[data-cat-pill]').forEach(btn => {
+        const isActive = btn.dataset.catPill === catId;
+        if (isActive) {
+          activePill = btn;
+          btn.className = 'px-3.5 py-1.5 rounded-full text-xs font-extrabold whitespace-nowrap transition shrink-0 bg-[#e63946] text-white shadow-sm shadow-rose-900/30 border border-[#e63946]';
+        } else {
+          btn.className = 'px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition shrink-0 bg-white dark:bg-masami-card text-stone-700 dark:text-zinc-300 border border-masami-paperBorder dark:border-masami-border hover:border-[#f4a261]';
+        }
+      });
+
+      if (shouldCenter && activePill) {
+        centerCategoryPill(activePill, true);
+      }
+    }
+
+    function renderCategoryPills() {
+      const bar = document.getElementById('catBar');
+      if (!bar) return;
+
+      bar.innerHTML = state.categories.map(cat => {
+        const isActive = cat.id === state.activeCategory;
+        const cls = isActive
+          ? 'px-3.5 py-1.5 rounded-full text-xs font-extrabold whitespace-nowrap transition shrink-0 bg-[#e63946] text-white shadow-sm shadow-rose-900/30 border border-[#e63946]'
+          : 'px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition shrink-0 bg-white dark:bg-masami-card text-stone-700 dark:text-zinc-300 border border-masami-paperBorder dark:border-masami-border hover:border-[#f4a261]';
+
+        return `<button type="button" data-cat-pill="${cat.id}" class="${cls}">${escapeHtml(cat.label)}</button>`;
+      }).join('');
+
+      bar.querySelectorAll('[data-cat-pill]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const catId = btn.dataset.catPill;
+          // Se c'è un filtro attivo che nasconde la sezione, azzeriamo il filtro
+          if (state.searchQuery || state.onlySelected) {
+            state.searchQuery = '';
+            state.onlySelected = false;
+            document.getElementById('searchInput').value = '';
+            document.getElementById('clearSearchBtn').classList.add('hidden');
+            updateOnlySelectedBtnUI();
+            renderMenu();
+          }
+
+          setActiveCategoryPill(catId, true);
+
+          // Blocco anti-interferenza navLockCatId durante lo scroll programmatico
+          state.navLockCatId = catId;
+          if (state.navLockTimer) clearTimeout(state.navLockTimer);
+          state.navLockTimer = setTimeout(() => {
+            state.navLockCatId = null;
+          }, 950);
+
+          const sectionEl = document.getElementById('sec-' + catId);
+          const headerEl = document.getElementById('stickyHeader');
+          if (sectionEl) {
+            const headerH = headerEl ? headerEl.offsetHeight : 120;
+            const targetY = window.scrollY + sectionEl.getBoundingClientRect().top - headerH - 8;
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+          }
+        });
+      });
+
+      setTimeout(updateCategoryArrowsState, 40);
+    }
+
+    function setupCategoryScrollControls() {
+      const bar = document.getElementById('catBar');
+      const leftBtn = document.getElementById('catScrollLeft');
+      const rightBtn = document.getElementById('catScrollRight');
+      if (!bar || !leftBtn || !rightBtn) return;
+
+      bar.addEventListener('scroll', updateCategoryArrowsState, { passive: true });
+      window.addEventListener('resize', updateCategoryArrowsState);
+
+      let holdInterval = null;
+      const startHold = (dir) => {
+        bar.scrollBy({ left: dir * 220, behavior: 'smooth' });
+        if (holdInterval) clearInterval(holdInterval);
+        holdInterval = setInterval(() => {
+          bar.scrollBy({ left: dir * 180, behavior: 'smooth' });
+        }, 220);
+      };
+      const stopHold = () => {
+        if (holdInterval) {
+          clearInterval(holdInterval);
+          holdInterval = null;
+        }
+      };
+
+      leftBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        startHold(-1);
+      });
+      rightBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        startHold(1);
+      });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
+        leftBtn.addEventListener(evt, stopHold);
+        rightBtn.addEventListener(evt, stopHold);
+      });
+
+      // Scroll-Spy su scorrimento verticale continuo
+      let spyTicking = false;
+      const runScrollSpy = () => {
+        spyTicking = false;
+        if (state.navLockCatId) return;
+
+        const headerEl = document.getElementById('stickyHeader');
+        const offset = (headerEl ? headerEl.offsetHeight : 120) + 28;
+        const sections = document.querySelectorAll('[data-menu-section]');
+        if (!sections.length) return;
+
+        let currentCatId = sections[0].dataset.menuSection;
+        for (let i = 0; i < sections.length; i++) {
+          const rect = sections[i].getBoundingClientRect();
+          if (rect.top <= offset) {
+            currentCatId = sections[i].dataset.menuSection;
+          } else {
+            break;
+          }
+        }
+
+        if (currentCatId && currentCatId !== state.activeCategory) {
+          setActiveCategoryPill(currentCatId, true);
+        }
+      };
+
+      window.addEventListener('scroll', () => {
+        if (!spyTicking) {
+          spyTicking = true;
+          requestAnimationFrame(runScrollSpy);
+        }
+      }, { passive: true });
+
+      window.addEventListener('scrollend', () => {
+        state.navLockCatId = null;
+      }, { passive: true });
+
+      ['wheel', 'touchstart'].forEach(evt => {
+        window.addEventListener(evt, () => {
+          if (state.navLockCatId) {
+            state.navLockCatId = null;
+          }
+        }, { passive: true });
+      });
+    }
+
+    // ==================== RENDERING MENU CONTINUO ====================
+    function getFilteredItems() {
+      const q = state.searchQuery.trim().toLowerCase();
+      return state.menuItems.filter(item => {
+        if (state.onlySelected && !(state.order[item.code] && state.order[item.code].qty > 0)) {
+          return false;
+        }
+        if (!q) return true;
+        const catLabel = getCategoryLabel(item.cat).toLowerCase();
+        return (
+          item.code.toLowerCase().includes(q) ||
+          item.name.toLowerCase().includes(q) ||
+          (item.desc && item.desc.toLowerCase().includes(q)) ||
+          catLabel.includes(q)
+        );
+      });
+    }
+
+    function renderDishCard(item) {
+      const qty = state.order[item.code] ? state.order[item.code].qty : 0;
+      const photoUrl = state.photos[item.code] || '';
+      const isLocked = Boolean(state.lockedPhotos[item.code] || state.lockedItems[item.code]);
+      const isCompactNoPhoto = Boolean(item.noPhoto);
+
+      const cardHighlight = qty > 0
+        ? 'border-[#e63946]/65 bg-rose-500/[0.04] dark:bg-[#e63946]/[0.07]'
+        : 'border-masami-paperBorder dark:border-masami-border bg-masami-paperCard dark:bg-masami-card';
+
+      const photoSlotHtml = isCompactNoPhoto
+        ? ''
+        : `
+          <button
+            type="button"
+            data-open-photo="${escapeHtml(item.code)}"
+            aria-label="Visualizza foto piatto ${escapeHtml(item.code)}"
+            class="relative w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-xl overflow-hidden bg-stone-100 dark:bg-zinc-900 border border-stone-200 dark:border-zinc-800 shrink-0 flex items-center justify-center group active:scale-95 transition"
+          >
+            ${
+              photoUrl
+                ? `<img src="${photoUrl}" alt="${escapeHtml(item.name)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-200" />`
+                : `<div class="flex flex-col items-center justify-center text-stone-400 dark:text-zinc-600 p-1">
+                    <svg class="w-5 h-5 mb-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">
+                      <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                      <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <span class="text-[9px] font-bold uppercase tracking-tight">Foto</span>
+                  </div>`
+            }
+          </button>
+        `;
+
+      const stepperHtml = qty > 0
+        ? `
+          <div class="inline-flex items-center gap-1 bg-stone-100 dark:bg-zinc-900 p-1 rounded-xl border border-stone-200 dark:border-zinc-700 shrink-0">
+            <button
+              type="button"
+              data-dec-code="${escapeHtml(item.code)}"
+              aria-label="Rimuovi uno"
+              class="w-8 h-8 rounded-lg bg-white dark:bg-zinc-800 hover:bg-rose-500/15 text-stone-800 dark:text-zinc-100 font-extrabold text-sm flex items-center justify-center shadow-xs active:scale-90 transition"
+            >&minus;</button>
+            <span class="w-6 text-center font-mono text-xs font-extrabold text-[#e63946] dark:text-[#f4a261]">${qty}</span>
+            <button
+              type="button"
+              data-inc-code="${escapeHtml(item.code)}"
+              aria-label="Aggiungi uno"
+              class="w-8 h-8 rounded-lg bg-[#e63946] hover:bg-rose-600 text-white font-extrabold text-sm flex items-center justify-center shadow-xs active:scale-90 transition"
+            >+</button>
+          </div>
+        `
+        : `
+          <button
+            type="button"
+            data-inc-code="${escapeHtml(item.code)}"
+            class="px-3 py-2 rounded-xl bg-stone-100 hover:bg-[#e63946] dark:bg-zinc-800/90 dark:hover:bg-[#e63946] text-stone-800 hover:text-white dark:text-zinc-200 dark:hover:text-white text-xs font-bold border border-stone-200 dark:border-zinc-700 hover:border-[#e63946] transition active:scale-95 shrink-0"
+          >
+            + Aggiungi
+          </button>
+        `;
+
+      return `
+        <article data-dish-card="${escapeHtml(item.code)}" class="p-2.5 sm:p-3 rounded-2xl border ${cardHighlight} flex items-center justify-between gap-2.5 shadow-xs transition">
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            ${photoSlotHtml}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="px-2 py-0.5 rounded-lg bg-zinc-900 dark:bg-zinc-950 text-[#f4a261] font-mono text-xs font-extrabold border border-[#f4a261]/30 shrink-0">
+                  ${escapeHtml(item.code)}
+                </span>
+                <h3 class="text-xs sm:text-sm font-extrabold tracking-tight leading-snug break-words">
+                  ${escapeHtml(item.name)}
+                </h3>
+                ${
+                  item.pieces
+                    ? `<span class="px-1.5 py-0.5 rounded-md bg-stone-200/80 dark:bg-zinc-800 text-stone-700 dark:text-zinc-300 font-mono text-[10px] font-bold shrink-0">${escapeHtml(item.pieces)}</span>`
+                    : ''
+                }
+                ${
+                  isCompactNoPhoto && isLocked
+                    ? `<span class="px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold shrink-0">🔒 Modificata</span>`
+                    : ''
+                }
+              </div>
+
+              ${
+                item.desc
+                  ? `<p class="text-[11px] sm:text-xs text-stone-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2">${escapeHtml(item.desc)}</p>`
+                  : ''
+              }
+
+              <div class="flex items-center gap-2.5 mt-1.5">
+                <span class="font-mono text-xs sm:text-sm font-extrabold text-[#e63946] dark:text-[#f4a261]">
+                  ${formatPrice(item.price)}
+                </span>
+                <button
+                  type="button"
+                  data-open-detail="${escapeHtml(item.code)}"
+                  class="text-[11px] font-semibold text-stone-400 hover:text-stone-800 dark:text-zinc-500 dark:hover:text-zinc-200 underline underline-offset-2 transition"
+                >
+                  Modifica
+                </button>
+              </div>
+            </div>
+          </div>
+
+          ${stepperHtml}
+        </article>
+      `;
+    }
+
+    function renderMenu() {
+      const container = document.getElementById('menuContainer');
+      const emptyState = document.getElementById('emptyState');
+      const filterBanner = document.getElementById('activeFilterBanner');
+      const filterText = document.getElementById('activeFilterText');
+      if (!container) return;
+
+      const filtered = getFilteredItems();
+
+      if (state.searchQuery || state.onlySelected) {
+        filterBanner.classList.remove('hidden');
+        const parts = [];
+        if (state.searchQuery) parts.push(`Ricerca: "${state.searchQuery}"`);
+        if (state.onlySelected) parts.push('Solo piatti scelti');
+        filterText.textContent = `${parts.join(' • ')} (${filtered.length} trovati)`;
+      } else {
+        filterBanner.classList.add('hidden');
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      let html = '';
+      state.categories.forEach(cat => {
+        const catItems = filtered
+          .filter(it => it.cat === cat.id)
+          .sort((a, b) => compareDishCodes(a.code, b.code));
+
+        if (catItems.length === 0) return;
+
+        html += `
+          <section id="sec-${cat.id}" data-menu-section="${cat.id}" class="pt-2">
+            <div class="flex items-center justify-between px-1 py-1.5 mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-1.5 h-5 rounded-full bg-gradient-to-b from-[#e63946] to-[#f4a261]"></span>
+                <h2 class="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-stone-800 dark:text-zinc-200">
+                  ${escapeHtml(cat.label)}
+                </h2>
+              </div>
+              <span class="font-mono text-[11px] font-semibold text-stone-400 dark:text-zinc-500">
+                ${catItems.length} ${catItems.length === 1 ? 'voce' : 'voci'}
+              </span>
+            </div>
+            <div class="space-y-2">
+              ${catItems.map(renderDishCard).join('')}
+            </div>
+          </section>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ==================== GESTIONE ORDINE & DETTATURA TELEFONICA ====================
+    function updateDishQuantity(code, delta) {
+      const current = state.order[code] ? state.order[code].qty : 0;
+      const next = current + delta;
+
+      if (next <= 0) {
+        delete state.order[code];
+        delete state.checked[code];
+      } else {
+        state.order[code] = {
+          qty: next,
+          addedAt: state.order[code] ? state.order[code].addedAt : Date.now()
+        };
+      }
+
+      saveLocalState();
+      updateOrderSummaryUI();
+      renderMenu();
+
+      if (state.detailCode === code && !document.getElementById('dishDetailModal').classList.contains('hidden')) {
+        renderDetailOrderControls(code);
+      }
+      if (!document.getElementById('orderModal').classList.contains('hidden')) {
+        renderOrderModalList();
+      }
+    }
+
+    function getOrderEntriesSorted() {
+      const entries = [];
+      Object.keys(state.order).forEach(code => {
+        const entry = state.order[code];
+        const item = getItemByCode(code);
+        if (item && entry && entry.qty > 0) {
+          entries.push({
+            item,
+            qty: entry.qty,
+            addedAt: entry.addedAt || 0,
+            checked: Boolean(state.checked[code])
+          });
+        }
+      });
+
+      if (state.sortMode === 'added') {
+        entries.sort((a, b) => a.addedAt - b.addedAt);
+      } else {
+        entries.sort((a, b) => compareDishCodes(a.item.code, b.item.code));
+      }
+      return entries;
+    }
+
+    function updateOrderSummaryUI() {
+      const entries = getOrderEntriesSorted();
+      let totalQty = 0;
+      let totalPrice = 0;
+
+      entries.forEach(e => {
+        totalQty += e.qty;
+        totalPrice += e.qty * (Number(e.item.price) || 0);
+      });
+
+      document.getElementById('headerBadgeCount').textContent = String(totalQty);
+      document.getElementById('bottomTotalQty').textContent = String(totalQty);
+      document.getElementById('bottomQtyLabel').textContent = totalQty === 1 ? 'piatto' : 'piatti';
+      document.getElementById('bottomTotalPrice').textContent = formatPrice(totalPrice);
+
+      const bottomBar = document.getElementById('stickyBottomBar');
+      if (totalQty > 0) {
+        bottomBar.classList.remove('hidden');
+      } else {
+        bottomBar.classList.add('hidden');
+      }
+    }
+
+    function renderOrderModalList() {
+      const listEl = document.getElementById('modalOrderList');
+      const progressEl = document.getElementById('dictationProgress');
+      const totalQtyEl = document.getElementById('modalTotalQty');
+      const totalPriceEl = document.getElementById('modalTotalPrice');
+      if (!listEl) return;
+
+      const entries = getOrderEntriesSorted();
+      let totalQty = 0;
+      let totalPrice = 0;
+      let checkedCount = 0;
+
+      entries.forEach(e => {
+        totalQty += e.qty;
+        totalPrice += e.qty * (Number(e.item.price) || 0);
+        if (e.checked) checkedCount++;
+      });
+
+      progressEl.textContent = `${checkedCount} / ${entries.length} dettati`;
+      totalQtyEl.textContent = `${totalQty} ${totalQty === 1 ? 'piatto' : 'piatti'}`;
+      totalPriceEl.textContent = formatPrice(totalPrice);
+
+      if (entries.length === 0) {
+        listEl.innerHTML = `
+          <div class="py-12 text-center text-stone-500 dark:text-zinc-400">
+            <p class="text-sm font-bold mb-1">Nessun piatto nell'ordine</p>
+            <p class="text-xs">Aggiungi i piatti dal menu per preparare la chiamata.</p>
+          </div>
+        `;
+        return;
+      }
+
+      listEl.innerHTML = entries.map(e => {
+        const phrase = buildDictationPhrase(e.item.code, e.qty);
+        const rowStyle = e.checked
+          ? 'opacity-60 bg-emerald-500/10 border-emerald-500/40'
+          : 'bg-white dark:bg-zinc-900 border-masami-paperBorder dark:border-masami-border';
+
+        return `
+          <div class="p-2.5 rounded-2xl border ${rowStyle} flex items-center justify-between gap-2.5 transition">
+            <label class="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                data-toggle-check="${escapeHtml(e.item.code)}"
+                ${e.checked ? 'checked' : ''}
+                class="w-5 h-5 rounded-md accent-emerald-600 shrink-0 cursor-pointer"
+              />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="px-2 py-0.5 rounded-lg bg-zinc-950 text-[#f4a261] font-mono text-xs font-extrabold">
+                    ${escapeHtml(e.item.code)}
+                  </span>
+                  <span class="px-2 py-0.5 rounded-md bg-[#e63946]/15 text-[#e63946] dark:text-rose-300 text-xs font-extrabold">
+                    "${escapeHtml(phrase)}"
+                  </span>
+                </div>
+                <div class="text-xs font-bold mt-1 truncate ${e.checked ? 'line-through' : ''}">
+                  ${escapeHtml(e.item.name)}
+                </div>
+                <div class="text-[11px] font-mono text-stone-500 dark:text-zinc-400">
+                  ${e.qty} &times; ${formatPrice(e.item.price)} = <strong>${formatPrice(e.qty * e.item.price)}</strong>
+                </div>
+              </div>
+            </label>
+
+            <div class="inline-flex items-center gap-1 bg-stone-100 dark:bg-zinc-950 p-1 rounded-xl border border-stone-200 dark:border-zinc-800 shrink-0">
+              <button
+                type="button"
+                data-modal-dec="${escapeHtml(e.item.code)}"
+                class="w-7 h-7 rounded-lg bg-white dark:bg-zinc-800 font-extrabold text-xs flex items-center justify-center"
+              >&minus;</button>
+              <span class="w-5 text-center font-mono text-xs font-extrabold">${e.qty}</span>
+              <button
+                type="button"
+                data-modal-inc="${escapeHtml(e.item.code)}"
+                class="w-7 h-7 rounded-lg bg-[#e63946] text-white font-extrabold text-xs flex items-center justify-center"
+              >+</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function copyOrderToClipboard() {
+      const entries = getOrderEntriesSorted();
+      if (entries.length === 0) {
+        showToast('Nessun piatto da copiare');
+        return;
+      }
+
+      let totalQty = 0;
+      let totalPrice = 0;
+      const lines = ['🍣 *ORDINE MASAMI SUSHI*', ''];
+
+      entries.forEach(e => {
+        totalQty += e.qty;
+        totalPrice += e.qty * (Number(e.item.price) || 0);
+        const pz = e.item.pieces ? ` (${e.item.pieces})` : '';
+        lines.push(`• ${e.qty}x [N. ${e.item.code}] ${e.item.name}${pz} — ${formatPrice(e.qty * e.item.price)}`);
+      });
+
+      lines.push('');
+      lines.push(`Totale piatti: ${totalQty}`);
+      lines.push(`Totale stimato: ${formatPrice(totalPrice)}`);
+
+      const text = lines.join('\n');
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast('Ordine copiato per WhatsApp!');
+      } catch (_) {
+        showToast('Impossibile copiare negli appunti');
+      }
+      document.body.removeChild(ta);
+    }
+
+    // ==================== MODALE DETTAGLIO, RITAGLIO FOTO & RICONOSCI TESTO PDF ====================
+    function renderDetailOrderControls(code) {
+      const box = document.getElementById('detailOrderControls');
+      if (!box) return;
+      const qty = state.order[code] ? state.order[code].qty : 0;
+      if (qty > 0) {
+        box.innerHTML = `
+          <div class="inline-flex items-center gap-1.5 bg-stone-100 dark:bg-zinc-900 p-1 rounded-xl border border-stone-200 dark:border-zinc-700">
+            <button type="button" data-detail-dec="${escapeHtml(code)}" class="w-9 h-9 rounded-lg bg-white dark:bg-zinc-800 font-extrabold text-base flex items-center justify-center shadow-xs active:scale-90 transition">&minus;</button>
+            <span class="w-7 text-center font-mono text-sm font-extrabold text-[#e63946] dark:text-[#f4a261]">${qty}</span>
+            <button type="button" data-detail-inc="${escapeHtml(code)}" class="w-9 h-9 rounded-lg bg-[#e63946] text-white font-extrabold text-base flex items-center justify-center shadow-xs active:scale-90 transition">+</button>
+          </div>
+        `;
+      } else {
+        box.innerHTML = `
+          <button type="button" data-detail-inc="${escapeHtml(code)}" class="px-4 py-2.5 rounded-xl bg-[#e63946] hover:bg-rose-600 text-white text-xs sm:text-sm font-extrabold shadow transition active:scale-95">
+            + Aggiungi all'ordine
+          </button>
+        `;
+      }
+    }
+
+    function openDishDetailModal(code, mode = 'edit') {
+      const item = getItemByCode(code);
+      if (!item) return;
+
+      const isViewOnly = mode === 'view';
+      state.detailCode = code;
+      state.detailMode = isViewOnly ? 'view' : 'edit';
+      state.lastRecognizedData = null;
+
+      document.getElementById('detailCodeBadge').textContent = `N. ${item.code}`;
+      document.getElementById('detailModalTitle').textContent = item.name;
+      document.getElementById('detailCategoryLabel').textContent = getCategoryLabel(item.cat);
+
+      const pageHintEl = document.getElementById('detailPdfPageHint');
+      const editToolsBar = document.getElementById('detailEditToolsBar');
+      const fieldsCard = document.getElementById('dishFieldsCard');
+      const noPhotoHint = document.getElementById('detailNoPhotoHint');
+
+      if (isViewOnly) {
+        pageHintEl.classList.add('hidden');
+        editToolsBar.classList.add('hidden');
+        fieldsCard.classList.add('hidden');
+        if (noPhotoHint) noPhotoHint.classList.add('hidden');
+      } else {
+        pageHintEl.textContent = item.pdfPage
+          ? `Pagina PDF consigliata: ${item.pdfPage}`
+          : 'Voce senza foto';
+        pageHintEl.classList.remove('hidden');
+        editToolsBar.classList.remove('hidden');
+        fieldsCard.classList.remove('hidden');
+        if (noPhotoHint) noPhotoHint.classList.remove('hidden');
+
+        document.getElementById('editDishNameInput').value = item.name;
+        document.getElementById('editDishPiecesInput').value = item.pieces || '';
+        document.getElementById('editDishPriceInput').value = Number(item.price || 0).toFixed(2);
+        document.getElementById('editDishDescInput').value = item.desc || '';
+      }
+
+      refreshDetailPhotoAndLockUI(item);
+      renderDetailOrderControls(code);
+
+      // Mostra vista scheda principale
+      document.getElementById('detailFormView').classList.remove('hidden');
+      document.getElementById('detailPdfToolView').classList.add('hidden');
+      document.getElementById('recognizedPreviewBox').classList.add('hidden');
+
+      document.getElementById('dishDetailModal').classList.remove('hidden');
+    }
+
+    function refreshDetailPhotoAndLockUI(item) {
+      const photoUrl = state.photos[item.code] || '';
+      const imgEl = document.getElementById('detailImg');
+      const noPhotoEl = document.getElementById('detailNoPhotoBox');
+      const photoWrapper = document.getElementById('detailPhotoWrapper');
+      const isViewOnly = state.detailMode === 'view';
+
+      if (item.noPhoto) {
+        photoWrapper.classList.add('hidden');
+      } else {
+        photoWrapper.classList.remove('hidden');
+        if (photoUrl) {
+          imgEl.src = photoUrl;
+          imgEl.classList.remove('hidden');
+          noPhotoEl.classList.add('hidden');
+        } else {
+          imgEl.src = '';
+          imgEl.classList.add('hidden');
+          noPhotoEl.classList.remove('hidden');
+        }
+      }
+
+      const isLocked = Boolean(state.lockedPhotos[item.code] || state.lockedItems[item.code]);
+      const lockedBadge = document.getElementById('detailLockedBadge');
+      const unlockBtn = document.getElementById('unlockDishBtn');
+      if (isLocked && !isViewOnly) {
+        lockedBadge.classList.remove('hidden');
+        unlockBtn.classList.remove('hidden');
+      } else {
+        lockedBadge.classList.add('hidden');
+        unlockBtn.classList.add('hidden');
+      }
+    }
+
+    function saveAndLockCurrentDish() {
+      const item = getItemByCode(state.detailCode);
+      if (!item) return;
+
+      const newName = document.getElementById('editDishNameInput').value.trim();
+      const newPieces = document.getElementById('editDishPiecesInput').value.trim();
+      const newPrice = parseFloat(document.getElementById('editDishPriceInput').value);
+      const newDesc = document.getElementById('editDishDescInput').value.trim();
+
+      if (newName) item.name = newName;
+      item.pieces = newPieces;
+      if (!Number.isNaN(newPrice) && newPrice >= 0) {
+        item.price = Number(newPrice.toFixed(2));
+      }
+      item.desc = newDesc;
+
+      state.lockedItems[item.code] = true;
+      saveCustomEditsToLocal();
+
+      document.getElementById('detailModalTitle').textContent = item.name;
+      refreshDetailPhotoAndLockUI(item);
+      renderMenu();
+      updateOrderSummaryUI();
+      showToast(`Piatto ${item.code} salvato e bloccato (🔒 Modificata)`);
+    }
+
+    async function handleSingleDishPhotoUpload(file) {
+      if (!file || !state.detailCode) return;
+      const item = getItemByCode(state.detailCode);
+      if (!item) return;
+
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        state.photos[item.code] = dataUrl;
+        state.lockedPhotos[item.code] = true;
+        await savePhotoToIDB(item.code, dataUrl);
+        saveCustomEditsToLocal();
+
+        refreshDetailPhotoAndLockUI(item);
+        renderMenu();
+        updatePdfStatusUI();
+        showToast(`Foto caricata e bloccata per ${item.code}`);
+      } catch (_) {
+        showToast('Impossibile leggere la foto selezionata');
+      }
+    }
+
+    // ==================== VISUALIZZATORE PDF INTERATTIVO (FOTO + RICONOSCIMENTO TESTO) ====================
+    function setPdfToolMode(mode) {
+      state.pdfToolMode = mode; // 'photo' | 'text'
+      const photoTab = document.getElementById('modePhotoCropTab');
+      const textTab = document.getElementById('modeTextRecognizeTab');
+      const instr = document.getElementById('pdfToolInstruction');
+      const previewBox = document.getElementById('recognizedPreviewBox');
+
+      if (mode === 'text') {
+        textTab.className = 'py-2 px-2.5 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5 bg-emerald-600 text-white shadow-sm';
+        photoTab.className = 'py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-stone-600 dark:text-zinc-400';
+        instr.innerHTML = 'Trascina con il dito o il mouse un <strong>rettangolo verde</strong> attorno al testo del piatto (codice, nome, ingredienti, prezzo) per autocompilare i campi.';
+      } else {
+        photoTab.className = 'py-2 px-2.5 rounded-lg text-xs font-extrabold transition flex items-center justify-center gap-1.5 bg-[#f4a261] text-zinc-950 shadow-sm';
+        textTab.className = 'py-2 px-2.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-stone-600 dark:text-zinc-400';
+        instr.innerHTML = 'Trascina con il dito o il mouse un <strong>rettangolo oro</strong> attorno alla foto del piatto per ritagliarla e salvarla.';
+        previewBox.classList.add('hidden');
+      }
+    }
+
+    async function openPdfToolForDish(mode) {
+      if (!state.pdfDoc) {
+        showToast('Carica prima "menu Sushi.pdf" dal pulsante in alto');
+        document.getElementById('pdfFileInput').click();
+        return;
+      }
+
+      const item = getItemByCode(state.detailCode);
+      const startPage = item && item.pdfPage
+        ? Math.min(Math.max(1, item.pdfPage), state.pdfDoc.numPages)
+        : 1;
+
+      state.pdfPageNum = startPage;
+      state.selRect = null;
+      state.lastRecognizedData = null;
+
+      document.getElementById('detailFormView').classList.add('hidden');
+      document.getElementById('detailPdfToolView').classList.remove('hidden');
+      document.getElementById('recognizedPreviewBox').classList.add('hidden');
+      document.getElementById('pdfTotalPagesLabel').textContent = `/ ${state.pdfDoc.numPages}`;
+
+      setPdfToolMode(mode);
+      await renderPdfToolPage(startPage);
+    }
+
+    let basePdfPageImageData = null;
+
+    async function renderPdfToolPage(pageNum) {
+      if (!state.pdfDoc) return;
+      const clamped = Math.min(Math.max(1, pageNum), state.pdfDoc.numPages);
+      state.pdfPageNum = clamped;
+      document.getElementById('pdfPageInput').value = String(clamped);
+
+      const page = await state.pdfDoc.getPage(clamped);
+      const scale = 1.85;
+      state.currentRenderScale = scale;
+      const viewport = page.getViewport({ scale });
+
+      const canvas = document.getElementById('pdfPageCanvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      basePdfPageImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    }
+
+    function redrawSelectionOverlay() {
+      const canvas = document.getElementById('pdfPageCanvas');
+      if (!canvas || !basePdfPageImageData) return;
+      const ctx = canvas.getContext('2d');
+      ctx.putImageData(basePdfPageImageData, 0, 0);
+
+      if (!state.selRect) return;
+      const { x, y, w, h } = state.selRect;
+
+      // Oscura leggermente l'esterno
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.fillRect(0, 0, canvas.width, y);
+      ctx.fillRect(0, y + h, canvas.width, canvas.height - (y + h));
+      ctx.fillRect(0, y, x, h);
+      ctx.fillRect(x + w, y, canvas.width - (x + w), h);
+
+      // Bordo selezione distinto per modalità
+      const strokeColor = state.pdfToolMode === 'text' ? '#10b981' : '#f4a261';
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = Math.max(3, Math.round(canvas.width / 240));
+      ctx.strokeRect(x, y, w, h);
+    }
+
+    function getCanvasCoordsFromEvent(e) {
+      const canvas = document.getElementById('pdfPageCanvas');
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return {
+        x: Math.max(0, Math.min(canvas.width, (clientX - rect.left) * scaleX)),
+        y: Math.max(0, Math.min(canvas.height, (clientY - rect.top) * scaleY))
+      };
+    }
+
+    // ==================== ESTRAZIONE TESTO PDF + OCR FALLBACK + PARSER INTELLIGENTE ====================
+    function parseRecognizedDishText(rawText) {
+      const cleanLines = String(rawText || '')
+        .split(/\r?\n/)
+        .map(l => l.replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+
+      if (cleanLines.length === 0) {
+        return { name: '', pieces: '', desc: '', price: null, raw: '' };
+      }
+
+      let foundPrice = null;
+      let foundPieces = '';
+      const workingLines = [...cleanLines];
+
+      // 1. Estrae il prezzo (€ 6,00 / €14.00 / 6,00 / 12.00) partendo dal basso o da fine riga
+      for (let i = workingLines.length - 1; i >= 0; i--) {
+        const line = workingLines[i];
+        const priceMatch = line.match(/(?:€\s*)?(\d{1,3}[.,]\d{2})\s*€?|€\s*(\d{1,3})(?:\b|$)/i);
+        if (priceMatch) {
+          const rawNum = (priceMatch[1] || priceMatch[2] || '').replace(',', '.');
+          const parsed = parseFloat(rawNum);
+          if (!Number.isNaN(parsed) && parsed > 0) {
+            foundPrice = Number(parsed.toFixed(2));
+            workingLines[i] = line.replace(priceMatch[0], '').replace(/[€]/g, '').trim();
+            break;
+          }
+        }
+      }
+
+      const nonEmptyLines = workingLines.filter(Boolean);
+      if (nonEmptyLines.length === 0) {
+        return { name: '', pieces: '', desc: '', price: foundPrice, raw: cleanLines.join('\n') };
+      }
+
+      // 2. Estrae eventuali pezzi "(2pz)" o "2pz" o "(1 pz)" dalle righe
+      for (let i = 0; i < nonEmptyLines.length; i++) {
+        const pzMatch = nonEmptyLines[i].match(/\(?\s*(\d{1,2}\s*(?:pz|pezzi|pezzo))\s*\)?/i);
+        if (pzMatch) {
+          foundPieces = pzMatch[1].replace(/\s+/g, '').toLowerCase();
+          if (foundPieces.endsWith('pezzi') || foundPieces.endsWith('pezzo')) {
+            foundPieces = foundPieces.replace(/pezz[oi]/, 'pz');
+          }
+          nonEmptyLines[i] = nonEmptyLines[i].replace(pzMatch[0], '').replace(/\s+/g, ' ').trim();
+          break;
+        }
+      }
+
+      const filteredLines = nonEmptyLines.filter(Boolean);
+
+      // 3. Prima riga = Nome Piatto (rimuove codice iniziale es. "902", "48", "01", "B01", "V12")
+      let dishName = filteredLines[0] || '';
+      dishName = dishName
+        .replace(/^(?:N\.?\s*)?(?:[BV]?\d{1,3})\s*[-–.:)]*\s*/i, '')
+        .replace(/^[-–.:)\s]+/, '')
+        .trim();
+
+      // Se dopo aver tolto il numero la prima riga è rimasta vuota, prendi la riga successiva come nome
+      let descStartIdx = 1;
+      if (!dishName && filteredLines.length > 1) {
+        dishName = filteredLines[1]
+          .replace(/^(?:N\.?\s*)?(?:[BV]?\d{1,3})\s*[-–.:)]*\s*/i, '')
+          .trim();
+        descStartIdx = 2;
+      }
+
+      // 4. Righe rimanenti = Ingredienti essenziali
+      const descParts = filteredLines.slice(descStartIdx).map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+      const dishDesc = descParts.join(' ');
+
+      return {
+        name: dishName,
+        pieces: foundPieces,
+        desc: dishDesc,
+        price: foundPrice,
+        raw: cleanLines.join('\n')
+      };
+    }
+
+    async function extractTextFromPdfSelection(selRect) {
+      if (!state.pdfDoc) return;
+      const overlay = document.getElementById('ocrLoadingOverlay');
+      overlay.classList.remove('hidden');
+
+      try {
+        const page = await state.pdfDoc.getPage(state.pdfPageNum);
+        const viewport = page.getViewport({ scale: state.currentRenderScale });
+        const textContent = await page.getTextContent();
+
+        // Converte i token di PDF.js nelle coordinate pixel del viewport/canvas
+        const matchedTokens = [];
+        const pad = 6; // leggera tolleranza sui bordi
+
+        (textContent.items || []).forEach(item => {
+          const str = String(item.str || '').trim();
+          if (!str) return;
+
+          const tx = item.transform[4];
+          const ty = item.transform[5];
+          const [vx, vy] = viewport.convertToViewportPoint(tx, ty);
+          const itemW = (item.width || 0) * viewport.scale;
+          const itemH = (Math.abs(item.transform[3]) || 12) * viewport.scale;
+
+          const centerX = vx + itemW * 0.45;
+          const centerY = vy - itemH * 0.35;
+
+          const insideX = centerX >= (selRect.x - pad) && centerX <= (selRect.x + selRect.w + pad);
+          const insideY = centerY >= (selRect.y - pad) && centerY <= (selRect.y + selRect.h + pad);
+
+          if (insideX && insideY) {
+            matchedTokens.push({ str, x: vx, y: vy, h: itemH });
+          }
+        });
+
+        let rawText = '';
+        let methodUsed = 'Testo PDF';
+
+        if (matchedTokens.length > 0) {
+          // Ordina dall'alto verso il basso e raggruppa per riga
+          matchedTokens.sort((a, b) => a.y - b.y);
+          const lines = [];
+          matchedTokens.forEach(tok => {
+            const lineTol = Math.max(7, tok.h * 0.55);
+            let targetLine = lines.find(l => Math.abs(l.avgY - tok.y) <= lineTol);
+            if (!targetLine) {
+              targetLine = { avgY: tok.y, tokens: [] };
+              lines.push(targetLine);
+            }
+            targetLine.tokens.push(tok);
+            targetLine.avgY = targetLine.tokens.reduce((acc, t) => acc + t.y, 0) / targetLine.tokens.length;
+          });
+
+          lines.sort((a, b) => a.avgY - b.avgY);
+          rawText = lines
+            .map(l => l.tokens.sort((a, b) => a.x - b.x).map(t => t.str).join(' '))
+            .join('\n');
+        } else if (window.Tesseract && basePdfPageImageData) {
+          // Fallback automatico con Tesseract.js ('ita') sull'area ritagliata
+          methodUsed = 'OCR Italiano';
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = Math.max(1, Math.round(selRect.w));
+          tempCanvas.height = Math.max(1, Math.round(selRect.h));
+          const tCtx = tempCanvas.getContext('2d');
+
+          const fullCanvas = document.createElement('canvas');
+          fullCanvas.width = basePdfPageImageData.width;
+          fullCanvas.height = basePdfPageImageData.height;
+          fullCanvas.getContext('2d').putImageData(basePdfPageImageData, 0, 0);
+
+          tCtx.drawImage(
+            fullCanvas,
+            selRect.x,
+            selRect.y,
+            selRect.w,
+            selRect.h,
+            0,
+            0,
+            tempCanvas.width,
+            tempCanvas.height
+          );
+
+          const ocrResult = await Tesseract.recognize(tempCanvas, 'ita');
+          rawText = (ocrResult && ocrResult.data && ocrResult.data.text) ? ocrResult.data.text : '';
+        }
+
+        const parsed = parseRecognizedDishText(rawText);
+        state.lastRecognizedData = parsed;
+
+        document.getElementById('recognitionMethodBadge').textContent = methodUsed;
+        document.getElementById('previewRecName').textContent = parsed.name || '(non rilevato)';
+        document.getElementById('previewRecPieces').textContent = parsed.pieces || '—';
+        document.getElementById('previewRecPrice').textContent = parsed.price !== null ? formatPrice(parsed.price) : '—';
+        document.getElementById('previewRecDesc').textContent = parsed.desc || '(nessuna descrizione)';
+        document.getElementById('previewRawText').textContent = parsed.raw || '(nessun testo letto)';
+
+        const previewBox = document.getElementById('recognizedPreviewBox');
+        previewBox.classList.remove('hidden');
+        previewBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        if (!parsed.name && parsed.price === null && !parsed.desc) {
+          showToast('Nessun testo leggibile nell\'area selezionata: prova a selezionare più largo');
+        } else {
+          showToast('Testo riconosciuto! Controlla l\'anteprima e premi "Applica ai Campi Piatto"');
+        }
+      } catch (err) {
+        console.error('Errore riconoscimento testo PDF:', err);
+        showToast('Errore durante il riconoscimento testo');
+      } finally {
+        overlay.classList.add('hidden');
+      }
+    }
+
+    async function cropPhotoFromPdfSelection(selRect) {
+      const item = getItemByCode(state.detailCode);
+      if (!item || !basePdfPageImageData) return;
+
+      const fullCanvas = document.createElement('canvas');
+      fullCanvas.width = basePdfPageImageData.width;
+      fullCanvas.height = basePdfPageImageData.height;
+      fullCanvas.getContext('2d').putImageData(basePdfPageImageData, 0, 0);
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = Math.max(1, Math.round(selRect.w));
+      outCanvas.height = Math.max(1, Math.round(selRect.h));
+      const oCtx = outCanvas.getContext('2d');
+      oCtx.drawImage(
+        fullCanvas,
+        selRect.x,
+        selRect.y,
+        selRect.w,
+        selRect.h,
+        0,
+        0,
+        outCanvas.width,
+        outCanvas.height
+      );
+
+      const dataUrl = outCanvas.toDataURL('image/jpeg', 0.9);
+      state.photos[item.code] = dataUrl;
+      state.lockedPhotos[item.code] = true;
+
+      await savePhotoToIDB(item.code, dataUrl);
+      saveCustomEditsToLocal();
+
+      // Torna alla scheda piatto mostrando subito la foto ritagliata e bloccata
+      document.getElementById('detailPdfToolView').classList.add('hidden');
+      document.getElementById('detailFormView').classList.remove('hidden');
+      refreshDetailPhotoAndLockUI(item);
+      renderMenu();
+      updatePdfStatusUI();
+      showToast(`Foto ritagliata e bloccata per ${item.code} (🔒 Modificata)`);
+    }
+
+    function applyRecognizedDataToForm() {
+      const data = state.lastRecognizedData;
+      if (!data) return;
+
+      if (data.name) {
+        document.getElementById('editDishNameInput').value = data.name;
+      }
+      document.getElementById('editDishPiecesInput').value = data.pieces || '';
+      if (data.price !== null && !Number.isNaN(data.price)) {
+        document.getElementById('editDishPriceInput').value = Number(data.price).toFixed(2);
+      }
+      if (data.desc) {
+        document.getElementById('editDishDescInput').value = data.desc;
+      }
+
+      // Torna alla vista form ed evidenzia i campi compilati
+      document.getElementById('detailPdfToolView').classList.add('hidden');
+      document.getElementById('detailFormView').classList.remove('hidden');
+
+      const fieldsCard = document.getElementById('dishFieldsCard');
+      fieldsCard.classList.add('ring-2', 'ring-emerald-500');
+      setTimeout(() => {
+        fieldsCard.classList.remove('ring-2', 'ring-emerald-500');
+      }, 1800);
+
+      showToast('Campi autocompilati! Premi "Salva e Blocca" per confermare.');
+    }
+
+    function setupPdfSelectionCanvas() {
+      const canvas = document.getElementById('pdfPageCanvas');
+      if (!canvas) return;
+
+      const onDown = (e) => {
+        if (!basePdfPageImageData) return;
+        e.preventDefault();
+        const pt = getCanvasCoordsFromEvent(e);
+        state.isDraggingSel = true;
+        state.selStart = pt;
+        state.selRect = { x: pt.x, y: pt.y, w: 0, h: 0 };
+        redrawSelectionOverlay();
+      };
+
+      const onMove = (e) => {
+        if (!state.isDraggingSel || !state.selStart) return;
+        e.preventDefault();
+        const pt = getCanvasCoordsFromEvent(e);
+        state.selRect = {
+          x: Math.min(state.selStart.x, pt.x),
+          y: Math.min(state.selStart.y, pt.y),
+          w: Math.abs(pt.x - state.selStart.x),
+          h: Math.abs(pt.y - state.selStart.y)
+        };
+        redrawSelectionOverlay();
+      };
+
+      const onUp = async () => {
+        if (!state.isDraggingSel) return;
+        state.isDraggingSel = false;
+        const rect = state.selRect;
+        if (!rect || rect.w < 12 || rect.h < 12) {
+          state.selRect = null;
+          redrawSelectionOverlay();
+          return;
+        }
+
+        if (state.pdfToolMode === 'text') {
+          await extractTextFromPdfSelection(rect);
+        } else {
+          await cropPhotoFromPdfSelection(rect);
+        }
+      };
+
+      canvas.addEventListener('mousedown', onDown);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+
+      canvas.addEventListener('touchstart', onDown, { passive: false });
+      canvas.addEventListener('touchmove', onMove, { passive: false });
+      canvas.addEventListener('touchend', onUp);
+    }
+
+    // ==================== INIZIALIZZAZIONE & EVENTI ====================
+    function updateOnlySelectedBtnUI() {
+      const btn = document.getElementById('onlySelectedBtn');
+      if (!btn) return;
+      btn.setAttribute('aria-pressed', state.onlySelected ? 'true' : 'false');
+      if (state.onlySelected) {
+        btn.className = 'px-3 py-2 rounded-xl text-xs font-extrabold border border-[#f4a261] bg-[#f4a261]/20 text-amber-800 dark:text-[#f4a261] transition shrink-0 active:scale-95';
+      } else {
+        btn.className = 'px-3 py-2 rounded-xl text-xs font-bold border border-masami-paperBorder dark:border-masami-border bg-white dark:bg-masami-card text-stone-700 dark:text-zinc-300 hover:border-[#f4a261] transition shrink-0 active:scale-95';
+      }
+    }
+
+    async function initApp() {
+      loadLocalState();
+
+      // Carica foto salvate in IndexedDB
+      const idbPhotos = await loadPhotosFromIDB();
+      state.photos = { ...state.photos, ...idbPhotos };
+
+      // Carica eventuale PDF salvato in cache IndexedDB
+      const cachedPdf = await loadPdfCacheFromIDB();
+      if (cachedPdf) {
+        try {
+          await loadPdfDocumentFromBytes(cachedPdf);
+        } catch (_) {}
+      }
+
+      renderCategoryPills();
+      setupCategoryScrollControls();
+      renderMenu();
+      updateOrderSummaryUI();
+      updatePdfStatusUI();
+      setupPdfSelectionCanvas();
+
+      // Tema Scuro / Carta di Riso
+      document.getElementById('themeToggleBtn').addEventListener('click', () => {
+        const isDark = document.documentElement.classList.toggle('dark');
+        try {
+          localStorage.setItem(STORAGE_KEYS.THEME, isDark ? 'dark' : 'light');
+        } catch (_) {}
+      });
+
+      // Carica PDF
+      const pdfInput = document.getElementById('pdfFileInput');
+      document.getElementById('loadPdfHeaderBtn').addEventListener('click', () => pdfInput.click());
+      document.getElementById('bannerLoadPdfBtn').addEventListener('click', () => pdfInput.click());
+      pdfInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handlePdfFileSelected(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+
+      // Drag & Drop PDF sulla pagina
+      window.addEventListener('dragover', (e) => e.preventDefault());
+      window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file && file.type === 'application/pdf') {
+          handlePdfFileSelected(file);
+        }
+      });
+
+      // Ricerca istantanea & Filtro "Solo scelti"
+      const searchInput = document.getElementById('searchInput');
+      const clearSearchBtn = document.getElementById('clearSearchBtn');
+      searchInput.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        clearSearchBtn.classList.toggle('hidden', !state.searchQuery);
+        renderMenu();
+      });
+
+      clearSearchBtn.addEventListener('click', () => {
+        state.searchQuery = '';
+        searchInput.value = '';
+        clearSearchBtn.classList.add('hidden');
+        renderMenu();
+        searchInput.focus();
+      });
+
+      document.getElementById('onlySelectedBtn').addEventListener('click', () => {
+        state.onlySelected = !state.onlySelected;
+        updateOnlySelectedBtnUI();
+        renderMenu();
+      });
+
+      const resetAllFilters = () => {
+        state.searchQuery = '';
+        state.onlySelected = false;
+        searchInput.value = '';
+        clearSearchBtn.classList.add('hidden');
+        updateOnlySelectedBtnUI();
+        renderMenu();
+      };
+      document.getElementById('clearAllFiltersInlineBtn').addEventListener('click', resetAllFilters);
+      document.getElementById('resetFiltersBtn').addEventListener('click', resetAllFilters);
+
+      // Delega click sul catalogo continuo (+ Aggiungi, - / +, Anteprima foto, Apri modifica)
+      document.getElementById('menuContainer').addEventListener('click', (e) => {
+        const incBtn = e.target.closest('[data-inc-code]');
+        if (incBtn) {
+          updateDishQuantity(incBtn.dataset.incCode, 1);
+          return;
+        }
+        const decBtn = e.target.closest('[data-dec-code]');
+        if (decBtn) {
+          updateDishQuantity(decBtn.dataset.decCode, -1);
+          return;
+        }
+        const photoBtn = e.target.closest('[data-open-photo]');
+        if (photoBtn) {
+          openDishDetailModal(photoBtn.dataset.openPhoto, 'view');
+          return;
+        }
+        const detailBtn = e.target.closest('[data-open-detail]');
+        if (detailBtn) {
+          openDishDetailModal(detailBtn.dataset.openDetail, 'edit');
+        }
+      });
+
+      // Eventi Modale Dettaglio Piatto
+      document.getElementById('closeDetailModalBtn').addEventListener('click', () => {
+        document.getElementById('dishDetailModal').classList.add('hidden');
+      });
+      document.getElementById('dishDetailModal').addEventListener('click', (e) => {
+        if (e.target.id === 'dishDetailModal') {
+          document.getElementById('dishDetailModal').classList.add('hidden');
+        }
+      });
+
+      document.getElementById('saveAndLockDishBtn').addEventListener('click', saveAndLockCurrentDish);
+
+      document.getElementById('unlockDishBtn').addEventListener('click', () => {
+        const item = getItemByCode(state.detailCode);
+        if (!item) return;
+        delete state.lockedItems[item.code];
+        delete state.lockedPhotos[item.code];
+        saveCustomEditsToLocal();
+        refreshDetailPhotoAndLockUI(item);
+        renderMenu();
+        showToast(`Blocco rimosso per ${item.code}`);
+      });
+
+      const singlePhotoInput = document.getElementById('singleDishPhotoInput');
+      document.getElementById('uploadSinglePhotoBtn').addEventListener('click', () => singlePhotoInput.click());
+      singlePhotoInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleSingleDishPhotoUpload(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+
+      document.getElementById('openPdfPhotoCropBtn').addEventListener('click', () => openPdfToolForDish('photo'));
+      document.getElementById('openPdfTextRecognizeBtn').addEventListener('click', () => openPdfToolForDish('text'));
+      document.getElementById('modePhotoCropTab').addEventListener('click', () => setPdfToolMode('photo'));
+      document.getElementById('modeTextRecognizeTab').addEventListener('click', () => setPdfToolMode('text'));
+
+      document.getElementById('backToFormViewBtn').addEventListener('click', () => {
+        document.getElementById('detailPdfToolView').classList.add('hidden');
+        document.getElementById('detailFormView').classList.remove('hidden');
+      });
+
+      document.getElementById('pdfPrevPageBtn').addEventListener('click', () => renderPdfToolPage(state.pdfPageNum - 1));
+      document.getElementById('pdfNextPageBtn').addEventListener('click', () => renderPdfToolPage(state.pdfPageNum + 1));
+      document.getElementById('pdfPageInput').addEventListener('change', (e) => {
+        const val = parseInt(e.target.value, 10);
+        if (!Number.isNaN(val)) renderPdfToolPage(val);
+      });
+
+      document.getElementById('applyRecognizedFieldsBtn').addEventListener('click', applyRecognizedDataToForm);
+
+      document.getElementById('detailOrderControls').addEventListener('click', (e) => {
+        const inc = e.target.closest('[data-detail-inc]');
+        if (inc) updateDishQuantity(inc.dataset.detailInc, 1);
+        const dec = e.target.closest('[data-detail-dec]');
+        if (dec) updateDishQuantity(dec.dataset.detailDec, -1);
+      });
+
+      // Eventi Modale Riepilogo Chiamata
+      const openOrderModal = () => {
+        state.clearConfirmPending = false;
+        document.getElementById('clearOrderBtnText').textContent = 'Svuota Lista';
+        renderOrderModalList();
+        document.getElementById('orderModal').classList.remove('hidden');
+      };
+      document.getElementById('headerOrderBtn').addEventListener('click', openOrderModal);
+      document.getElementById('openOrderModalBtn').addEventListener('click', openOrderModal);
+      document.getElementById('closeOrderModalBtn').addEventListener('click', () => {
+        document.getElementById('orderModal').classList.add('hidden');
+      });
+      document.getElementById('orderModal').addEventListener('click', (e) => {
+        if (e.target.id === 'orderModal') {
+          document.getElementById('orderModal').classList.add('hidden');
+        }
+      });
+
+      document.getElementById('sortByCodeBtn').addEventListener('click', () => {
+        state.sortMode = 'code';
+        document.getElementById('sortByCodeBtn').className = 'px-2.5 py-1 rounded-md font-bold transition bg-white dark:bg-zinc-700 text-stone-900 dark:text-white shadow-sm';
+        document.getElementById('sortByAddedBtn').className = 'px-2.5 py-1 rounded-md font-medium transition text-stone-600 dark:text-zinc-400';
+        renderOrderModalList();
+      });
+
+      document.getElementById('sortByAddedBtn').addEventListener('click', () => {
+        state.sortMode = 'added';
+        document.getElementById('sortByAddedBtn').className = 'px-2.5 py-1 rounded-md font-bold transition bg-white dark:bg-zinc-700 text-stone-900 dark:text-white shadow-sm';
+        document.getElementById('sortByCodeBtn').className = 'px-2.5 py-1 rounded-md font-medium transition text-stone-600 dark:text-zinc-400';
+        renderOrderModalList();
+      });
+
+      document.getElementById('modalOrderList').addEventListener('change', (e) => {
+        const chk = e.target.closest('[data-toggle-check]');
+        if (chk) {
+          const code = chk.dataset.toggleCheck;
+          state.checked[code] = chk.checked;
+          saveLocalState();
+          renderOrderModalList();
+        }
+      });
+
+      document.getElementById('modalOrderList').addEventListener('click', (e) => {
+        const inc = e.target.closest('[data-modal-inc]');
+        if (inc) {
+          updateDishQuantity(inc.dataset.modalInc, 1);
+          return;
+        }
+        const dec = e.target.closest('[data-modal-dec]');
+        if (dec) {
+          updateDishQuantity(dec.dataset.modalDec, -1);
+        }
+      });
+
+      document.getElementById('copyOrderBtn').addEventListener('click', copyOrderToClipboard);
+
+      document.getElementById('clearOrderBtn').addEventListener('click', () => {
+        if (!state.clearConfirmPending) {
+          state.clearConfirmPending = true;
+          document.getElementById('clearOrderBtnText').textContent = 'Conferma Svuota';
+          setTimeout(() => {
+            state.clearConfirmPending = false;
+            const lbl = document.getElementById('clearOrderBtnText');
+            if (lbl) lbl.textContent = 'Svuota Lista';
+          }, 3500);
+          return;
+        }
+        state.order = {};
+        state.checked = {};
+        state.clearConfirmPending = false;
+        document.getElementById('clearOrderBtnText').textContent = 'Svuota Lista';
+        saveLocalState();
+        updateOrderSummaryUI();
+        renderMenu();
+        renderOrderModalList();
+        showToast('Lista ordine svuotata');
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
