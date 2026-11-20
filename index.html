@@ -3,6 +3,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
   <title>Masami Sushi — Ordine Rapido</title>
+  
+  <!-- Configurazione PWA -->
+  <link rel="manifest" href="/Sushi/manifest.json">
+  <meta name="theme-color" content="#0f1115">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Masami Sushi">
+  <link rel="apple-touch-icon" href="/Sushi/icons/192.png">
+  
   <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -2788,4 +2797,15 @@
     window.addEventListener('DOMContentLoaded', initApp);
   </script>
 
-</body></html>
+<script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('/Sushi/service-worker.js', { scope: '/Sushi/' })
+          .catch((err) => console.warn('Errore registrazione Service Worker:', err));
+      });
+    }
+  </script>
+
+</body>
+</html>
